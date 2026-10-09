@@ -1,4 +1,5 @@
 #include "gameloop.hpp"
+#include "gfx/stereo.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -823,6 +824,10 @@ std::string GameFpsText() {
 // screen's frame after it. ReadbackFrame would read a display frame, overlay and all.
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {
     return gfx::ReadbackTexture(gfx::kPreviousFrame, rgba, width, height);
+}
+
+bool GameStereoCapture(const std::filesystem::path &directory) {
+    return g_list && gfx::WriteStereoCapture(*g_list, directory);
 }
 
 bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height) {

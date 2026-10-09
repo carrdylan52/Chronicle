@@ -50,6 +50,7 @@ struct Options {
     bool         offscreen = false;
     std::int64_t frames = -1;
     const char  *screenshot = nullptr;
+    const char  *stereo_screenshot = nullptr;
     const char  *input = nullptr;
     int          width = 0;
     int          height = 0;
@@ -81,6 +82,8 @@ Options g_options;
                  "                     --headless does when there is no VK_EXT_headless_surface)\n"
                  "  --frames N         stop after N frames of the game's main loop\n"
                  "  --screenshot PATH  write the last tick's image (no FPS counter) to PATH on exit\n"
+                 "  --stereo-screenshot DIR  experimental synthetic eye PNGs in a NEW directory;\n"
+                 "                     requires --offscreen and --frames N, N > 0; no headset output\n"
                  "  --input FILE       drive pad 1 from a script (default: DC_INPUT); see docs/PC.md\n"
                  "  --width, --height  window size in pixels (default: config.json, then the monitor's)\n"
                  "  --screenshot-fps   with --screenshot and --show-fps: the image as a window shows it, the\n"
@@ -126,6 +129,8 @@ Options ParseOptions(int argc, const char **argv) {
             options.frames = number();
         } else if (arg == "--screenshot") {
             options.screenshot = value();
+        } else if (arg == "--stereo-screenshot") {
+            options.stereo_screenshot = value();
         } else if (arg == "--input") {
             options.input = value();
         } else if (arg == "--width") {
@@ -151,6 +156,9 @@ Options ParseOptions(int argc, const char **argv) {
         } else {
             Usage(argv[0]);
         }
+    }
+    if (options.stereo_screenshot && (!options.offscreen || options.frames <= 0)) {
+        Usage(argv[0]);
     }
     return options;
 }
@@ -441,6 +449,11 @@ int Run(int argc, const char **argv) {
     int status = RunGame(argc, const_cast<char **>(argv));
     if (status == kExitOk && options.screenshot != nullptr) {
         status = Screenshot(options.screenshot);
+    }
+    if (status == kExitOk && options.stereo_screenshot != nullptr &&
+        !GameStereoCapture(PathsFromUtf8(options.stereo_screenshot))) {
+        std::fprintf(stderr, "DCVR stereo capture failed\n");
+        status = kExitFailure;
     }
     ReportPresentStats();
 

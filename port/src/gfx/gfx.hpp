@@ -560,6 +560,16 @@ void CutInterpolation();
 // Its camera (MeshTransform::view) is not; the objects still are.
 void CutCameraInterpolation();
 
+// Experimental eye replay: replace one recorded camera's projection and apply an eye-space
+// transform AFTER its (possibly interpolated) view. Both matrices are column-major. The game
+// camera looks along +Z; projection must produce Vulkan reverse-Z clip coordinates. This is
+// display-only and cannot recover geometry the game culled before recording.
+struct ViewOverride {
+    uint32_t camera = 0;
+    float projection[16] = {};
+    float view_from_camera[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+};
+
 struct RenderOptions {
     // Run the stateful entries and render into the tick's colour image, which then becomes what
     // kPreviousFrame, SnapshotFrame of kMainTarget and the depth queries see. alpha is ignored.
@@ -576,6 +586,9 @@ struct RenderOptions {
     // Display renders: the list is the host's own 2D, as an overlay always is, so the full-frame
     // rule carries none of it past the logical frame.
     bool host = false;
+    // Meshes and depth-tested world sprites belonging to this camera; HUD and other cameras
+    // retain their recorded mapping. Invalid matrices, camera index, or canonical use are refused.
+    const ViewOverride *view_override = nullptr;
 };
 
 // False when nothing was rendered: the list belongs to another renderer, a frame is open, or a

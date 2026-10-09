@@ -309,3 +309,9 @@ if(DC_BUILD_TESTS)
     add_subdirectory(src/tests)
 endif()
 add_subdirectory(${CMAKE_SOURCE_DIR}/tools/dcdata ${CMAKE_BINARY_DIR}/tools/dcdata)
+
+# DCVR is opt-in: ordinary desktop builds do not fetch or link an OpenXR loader.
+option(DC_ENABLE_OPENXR "Build the experimental DCVR OpenXR/Vulkan diagnostic" OFF)
+if(DC_ENABLE_OPENXR)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/tools/dcvr ${CMAKE_BINARY_DIR}/tools/dcvr)
+endif()

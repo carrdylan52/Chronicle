@@ -96,6 +96,10 @@ since SDL's offscreen video driver cannot make a Vulkan surface on Windows.
 
 ## Tests
 
+For the optional DCVR OpenXR probe and synthetic stereo development capture, see [DCVR.md](DCVR.md).
+Pass `-OpenXR` to both configure and build scripts to include the probe; ordinary desktop builds
+do not require an OpenXR SDK or runtime.
+
 ```powershell
 $build = Join-Path $root 'build-tests'
 ./tools/windows/configure-tests.ps1 -Root $root -BuildDirectory $build

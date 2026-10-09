@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -132,3 +133,5 @@ std::string GameFpsText();
 bool GameScreenshotWithFps(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height);
 
 bool GameScreenshot(std::vector<std::uint8_t> &rgba, std::uint32_t &width, std::uint32_t &height);
+// Synthetic eye capture of the last recorded game tick; development only.
+bool GameStereoCapture(const std::filesystem::path &directory);

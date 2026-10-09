@@ -504,7 +504,7 @@ bool MoveSprite(const Draw2DEntry &sprite, const SpriteScene &scene, const Mat4 
 }
 
 void MoveSprites(const DisplayList &list, const std::vector<Mat4> &views, const std::vector<bool> &moved,
-                 Overrides &out) {
+                 Overrides &out, const ViewOverride *eye) {
     std::vector<Mat4> carry(list.scenes.size());
     std::vector<int>  state(list.scenes.size(), 0);
     for (const Entry &entry : list.entries) {
@@ -521,7 +521,11 @@ void MoveSprites(const DisplayList &list, const std::vector<Mat4> &views, const 
             Mat4 place;
             state[sprite->scene] = -1;
             if (Invert(scene.projection, unproject) && InvertAffine(list.cameras[scene.camera], place)) {
-                carry[sprite->scene] = Multiply(Multiply(scene.projection, views[scene.camera]),
+                Mat4 projection = scene.projection;
+                if (eye && eye->camera == scene.camera) {
+                    std::copy_n(eye->projection, 16, projection.begin());
+                }
+                carry[sprite->scene] = Multiply(Multiply(projection, views[scene.camera]),
                                                 Multiply(place, unproject));
                 state[sprite->scene] = 1;
             }
@@ -529,6 +533,9 @@ void MoveSprites(const DisplayList &list, const std::vector<Mat4> &views, const 
         std::vector<Vertex2D> vertices;
         if (state[sprite->scene] == 1 && MoveSprite(*sprite, scene, carry[sprite->scene], vertices)) {
             out.sprites.emplace(sprite, std::move(vertices));
+        } else if (eye && eye->camera == scene.camera) {
+            // A sprite behind the eye cannot safely fall back to the original screen position.
+            out.sprites.emplace(sprite, std::vector<Vertex2D>{});
         }
     }
 }
@@ -593,9 +600,10 @@ void PosesBetween(const DisplayList &list, const DisplayList &previous, float al
     }
 }
 
-void Interpolated(const DisplayList &list, const DisplayList &previous, float alpha, Overrides &out) {
-    if (list.cache.previous_serial != previous.serial) {
-        BuildMatches(list, previous);
+void DisplayOverrides(const DisplayList &list, const DisplayList *previous, float alpha, Overrides &out,
+                      const ViewOverride *eye) {
+    if (previous && list.cache.previous_serial != previous->serial) {
+        BuildMatches(list, *previous);
     }
     const MatchCache &cache = list.cache;
 
@@ -603,13 +611,19 @@ void Interpolated(const DisplayList &list, const DisplayList &previous, float al
     std::vector<bool> moved(list.cameras.size(), false);
     for (size_t i = 0; i < list.cameras.size(); i++) {
         views[i] = list.cameras[i];
-        int32_t before = cache.cameras[i];
-        if (before >= 0 && previous.cameras[before] != list.cameras[i]) {
-            moved[i] = InterpolateView(previous.cameras[before], list.cameras[i], alpha, views[i]);
+        int32_t before = previous ? cache.cameras[i] : -1;
+        if (before >= 0 && previous->cameras[before] != list.cameras[i]) {
+            moved[i] = InterpolateView(previous->cameras[before], list.cameras[i], alpha, views[i]);
+        }
+        if (eye && eye->camera == i) {
+            Mat4 delta;
+            std::copy_n(eye->view_from_camera, 16, delta.begin());
+            views[i] = Multiply(delta, views[i]);
+            moved[i] = true; // A projection-only change must also reproject sprites and meshes.
         }
     }
 
-    MoveSprites(list, views, moved, out);
+    MoveSprites(list, views, moved, out, eye);
 
     out.index.assign(list.records.size(), -1);
     out.constants.clear();
@@ -630,15 +644,15 @@ void Interpolated(const DisplayList &list, const DisplayList &previous, float al
             continue;
         }
         Mat4    model = record.model;
-        int32_t match = cache.match[mesh->record];
+        int32_t match = previous ? cache.match[mesh->record] : -1;
         if (match >= 0 && cache.blend[mesh->record]) {
-            const MeshEntry &before = std::get<MeshEntry>(previous.entries[previous.records[match].entry]);
+            const MeshEntry &before = std::get<MeshEntry>(previous->entries[previous->records[match].entry]);
             out.vertex_index[mesh->record] = static_cast<int32_t>(out.vertices.size());
             BlendVertices(before.vertices, mesh->vertices, alpha, out.vertices.emplace_back());
         }
-        if (match >= 0 && previous.records[match].model != record.model) {
+        if (match >= 0 && previous->records[match].model != record.model) {
             // A model's strips and passes come one after another with the same pair of matrices.
-            const Mat4 &before = previous.records[match].model;
+            const Mat4 &before = previous->records[match].model;
             if (last_before == nullptr || *last_before != before || *last_after != record.model) {
                 last_before = &before;
                 last_after = &record.model;
@@ -646,13 +660,17 @@ void Interpolated(const DisplayList &list, const DisplayList &previous, float al
             }
             model = last_model;
         }
-        bool        turned = match >= 0 && previous.records[match].model != record.model && last_turned;
+        bool        turned = match >= 0 && previous->records[match].model != record.model && last_turned;
         const Mat3 &delta = last_delta;
         if (!turned && !moved[record.camera]) {
             continue;
         }
         MeshConstants constants = mesh->constants;
-        Mat4          world_to_clip = Multiply(Multiply(record.projection, views[record.camera]), record.middle);
+        Mat4 projection = record.projection;
+        if (eye && eye->camera == record.camera) {
+            std::copy_n(eye->projection, 16, projection.begin());
+        }
+        Mat4          world_to_clip = Multiply(Multiply(projection, views[record.camera]), record.middle);
         Mat4          mvp = Multiply(world_to_clip, Multiply(model, record.local));
         std::memcpy(constants.mvp, mvp.data(), sizeof(constants.mvp));
         if (turned) {
@@ -670,7 +688,9 @@ void Interpolated(const DisplayList &list, const DisplayList &previous, float al
         out.constants.push_back(constants);
     }
 
-    PosesBetween(list, previous, alpha, out);
+    if (previous) {
+        PosesBetween(list, *previous, alpha, out);
+    }
 }
 
 // A grab of the frame (a copy or blit out of the main target) is taken by the canonical render at
@@ -1050,6 +1070,19 @@ bool RenderList(const DisplayList &list, float alpha, const RenderOptions &optio
         Error("RenderList inside a frame");
         return false;
     }
+    if (const ViewOverride *eye = options.view_override) {
+        Mat4 projection, view, inverse;
+        std::copy_n(eye->projection, 16, projection.begin());
+        std::copy_n(eye->view_from_camera, 16, view.begin());
+        auto finite = [](const Mat4 &m) {
+            return std::all_of(m.begin(), m.end(), [](float v) { return std::isfinite(v); });
+        };
+        if (options.canonical || options.host || eye->camera >= list.cameras.size() ||
+            !finite(projection) || !finite(view) || !Invert(projection, inverse) || !InvertAffine(view, inverse)) {
+            Error("invalid display view override");
+            return false;
+        }
+    }
     if (options.canonical) {
         OpenListFrame(true, false, false);
         Replay(list, true, nullptr);
@@ -1062,13 +1095,14 @@ bool RenderList(const DisplayList &list, float alpha, const RenderOptions &optio
     Overrides overrides;
     bool      interpolate = options.previous != nullptr && options.previous->instance == g.renderer_instance;
     interpolate = interpolate && alpha < 1.0f && !list.cut;
-    if (interpolate) {
-        Interpolated(list, *options.previous, std::max(alpha, 0.0f), overrides);
+    if (interpolate || options.view_override) {
+        DisplayOverrides(list, interpolate ? options.previous : nullptr, std::max(alpha, 0.0f), overrides,
+                         options.view_override);
     }
     if (!OpenListFrame(false, options.present, list.needs_base)) {
         return false;
     }
-    Replay(list, false, interpolate ? &overrides : nullptr, options.host);
+    Replay(list, false, (interpolate || options.view_override) ? &overrides : nullptr, options.host);
     if (options.overlay != nullptr && options.overlay->instance == g.renderer_instance) {
         SetRenderTarget(kMainTarget);
         Replay(*options.overlay, false, nullptr, true);

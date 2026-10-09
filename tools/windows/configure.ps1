@@ -1,4 +1,4 @@
-param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [string]$BuildType = 'Debug',
+param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [switch]$OpenXR, [string]$BuildType = 'Debug',
       [string]$VulkanLibrary = "$env:SystemRoot/System32/vulkan-1.dll")
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/common.ps1"
@@ -9,8 +9,10 @@ $llvm = "$root/deps/llvm/llvm-mingw-20260922-ucrt-x86_64/bin"
 $cmake = Find-WindowsTool cmake 'C:/Program Files/CMake/bin/cmake.exe'
 $python = Find-WindowsPython
 $testOption = if ($Tests) { 'ON' } else { 'OFF' }
+$xrOption = if ($OpenXR) { 'ON' } else { 'OFF' }
 & $cmake -S $source -B $build -G Ninja `
     -DPLATFORM=PC "-DCMAKE_BUILD_TYPE=$BuildType" "-DDC_BUILD_TESTS=$testOption" `
+    "-DDC_ENABLE_OPENXR=$xrOption" `
     "-DCMAKE_CXX_COMPILER=$llvm/clang++.exe" "-DCMAKE_RC_COMPILER=$llvm/windres.exe" `
     "-DCMAKE_MAKE_PROGRAM=$root/deps/ninja/ninja.exe" "-DPython3_EXECUTABLE=$python" `
     "-DSDL3_DIR=$root/deps/sdl/SDL3-3.4.18/x86_64-w64-mingw32/lib/cmake/SDL3" `

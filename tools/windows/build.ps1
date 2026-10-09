@@ -1,4 +1,4 @@
-param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [int]$Jobs = 12)
+param([string]$Root, [string]$BuildDirectory, [switch]$Tests, [switch]$OpenXR, [int]$Jobs = 12)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/common.ps1"
 $root = Resolve-WindowsRoot $Root
@@ -6,6 +6,7 @@ $build = Resolve-WindowsBuild $root $BuildDirectory
 $cmake = Find-WindowsTool cmake 'C:/Program Files/CMake/bin/cmake.exe'
 $targets = @('darkcloud', 'dcdata')
 if ($Tests) { $targets += 'darkcloud_tests' }
+if ($OpenXR) { $targets += 'dcvr_probe' }
 & $cmake --build $build --target $targets -j $Jobs *> "$build/build.log"
 $code = $LASTEXITCODE
 Get-Content "$build/build.log" -Tail 65

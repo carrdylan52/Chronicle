@@ -323,6 +323,13 @@ renders one.
 
 ## Device
 
+Experimental DCVR display replays accept `RenderOptions::view_override`: one recorded camera's
+projection is replaced and `view_from_camera` is composed after its interpolated view. This also
+reprojects its depth-tested sprites, even without interpolation or across a cut. Other cameras
+and HUD keep their recorded mapping. Canonical use, invalid matrices and missing camera indices
+are refused. This is a renderer seam, not a headset session; see `docs/DCVR.md` for capture
+assumptions, culling/temporal limitations and the remaining OpenXR integration.
+
 `RendererInit` takes the best device that has everything below (a discrete GPU over an integrated
 one over the rest, and Vulkan 1.4 over 1.3 within a kind) and prints, for every device it passes
 over, each requirement that device lacks. `requirements.cpp` holds the check as a pure function of
