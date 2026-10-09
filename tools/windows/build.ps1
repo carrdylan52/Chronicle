@@ -6,7 +6,10 @@ $build = Resolve-WindowsBuild $root $BuildDirectory
 $cmake = Find-WindowsTool cmake 'C:/Program Files/CMake/bin/cmake.exe'
 $targets = @('darkcloud', 'dcdata')
 if ($Tests) { $targets += 'darkcloud_tests' }
-if ($OpenXR) { $targets += 'dcvr_probe' }
+if ($OpenXR) {
+    $targets += 'dcvr_probe', 'dcvr_room'
+    if ($Tests) { $targets += 'dcvr_tests' }
+}
 & $cmake --build $build --target $targets -j $Jobs *> "$build/build.log"
 $code = $LASTEXITCODE
 Get-Content "$build/build.log" -Tail 65

@@ -12,6 +12,7 @@
 
 #include "context.hpp"
 #include "displaylist.hpp"
+#include "vulkan.hpp"
 
 namespace gfx {
 
@@ -126,7 +127,9 @@ void CreateInstance() {
     app.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app.pEngineName = "dcdecomp";
     app.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    app.apiVersion = VK_API_VERSION_1_4;
+    app.apiVersion = g.config.vulkan_provider
+                         ? g.config.vulkan_provider->ApiVersion(loader_version)
+                         : VK_API_VERSION_1_4;
 
     VkDebugUtilsMessengerCreateInfoEXT messenger = {};
     messenger.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -146,7 +149,9 @@ void CreateInstance() {
     info.ppEnabledLayerNames = layers.data();
     info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     info.ppEnabledExtensionNames = extensions.data();
-    Check(vkCreateInstance(&info, nullptr, &g.instance), "vkCreateInstance");
+    Check(g.config.vulkan_provider ? g.config.vulkan_provider->CreateInstance(info, g.instance)
+                                   : vkCreateInstance(&info, nullptr, &g.instance),
+          "create Vulkan instance");
 
     if (validation) {
         auto create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
@@ -193,9 +198,15 @@ std::string Join(const std::vector<std::string> &items) {
 
 void PickPhysicalDevice() {
     uint32_t count = 0;
-    vkEnumeratePhysicalDevices(g.instance, &count, nullptr);
-    std::vector<VkPhysicalDevice> devices(count);
-    vkEnumeratePhysicalDevices(g.instance, &count, devices.data());
+    std::vector<VkPhysicalDevice> devices;
+    if (g.config.vulkan_provider) {
+        // An XR runtime's GPU is mandatory. Never fall back to another adapter.
+        devices.push_back(g.config.vulkan_provider->PhysicalDevice(g.instance));
+    } else {
+        vkEnumeratePhysicalDevices(g.instance, &count, nullptr);
+        devices.resize(count);
+        vkEnumeratePhysicalDevices(g.instance, &count, devices.data());
+    }
 
     // The kind of GPU first, then 1.4 over 1.3: an integrated 1.3 GPU beats a 1.4 CPU rasteriser.
     int        best = -1;
@@ -345,7 +356,9 @@ void CreateDevice() {
     info.pQueueCreateInfos = &queue;
     info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     info.ppEnabledExtensionNames = extensions.data();
-    Check(vkCreateDevice(g.physical_device, &info, nullptr, &g.device), "vkCreateDevice");
+    Check(g.config.vulkan_provider ? g.config.vulkan_provider->CreateDevice(g.physical_device, info, g.device)
+                                   : vkCreateDevice(g.physical_device, &info, nullptr, &g.device),
+          "create Vulkan device");
     vkGetDeviceQueue(g.device, g.queue_family, 0, &g.queue);
     if (g.dynamic_color_write_mask) {
         g.cmd_set_color_write_mask = reinterpret_cast<PFN_vkCmdSetColorWriteMaskEXT>(
@@ -808,6 +821,18 @@ void RendererInit(SDL_Window *window, const RendererConfig &config) {
 
 void RendererShutdown() {
     if (g.device == VK_NULL_HANDLE) {
+        if (g.surface != VK_NULL_HANDLE) {
+            SDL_Vulkan_DestroySurface(g.instance, g.surface, nullptr);
+        }
+        if (g.messenger != VK_NULL_HANDLE) {
+            auto destroy = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
+                vkGetInstanceProcAddr(g.instance, "vkDestroyDebugUtilsMessengerEXT"));
+            destroy(g.instance, g.messenger, nullptr);
+        }
+        if (g.instance != VK_NULL_HANDLE) {
+            vkDestroyInstance(g.instance, nullptr);
+        }
+        g = {};
         return;
     }
     g.list.reset();
@@ -1106,6 +1131,46 @@ bool PresentCanonical() {
     PresentImage(frame, frame.draw_cmd, PreviousMainColor());
     g.target = kMainTarget;
     AdvanceSlot();
+    return true;
+}
+
+VulkanContext ActiveVulkanContext() {
+    return {g.instance, g.physical_device, g.device, g.queue, g.queue_family};
+}
+
+bool CopyDisplayToVulkanImage(VkImage image, VkFormat format, uint32_t width, uint32_t height) {
+    if (!g.device || !image || !width || !height || g.in_frame || g.list ||
+        !g.canonical_newest || !g.presented_display ||
+        width > g.properties.limits.maxImageDimension2D || height > g.properties.limits.maxImageDimension2D) {
+        return false;
+    }
+    VkFormatProperties source_properties, destination_properties;
+    vkGetPhysicalDeviceFormatProperties(g.physical_device, kColorFormat, &source_properties);
+    vkGetPhysicalDeviceFormatProperties(g.physical_device, format, &destination_properties);
+    if (!(source_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT) ||
+        !(destination_properties.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
+        return false;
+    }
+    RunOneShot([&](VkCommandBuffer cmd) {
+        Image &source = g.display_color;
+        Transition(cmd, source, TransferSrc());
+        SwapchainBarrier(cmd, image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        VkImageBlit region = {};
+        region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.srcOffsets[1] = {static_cast<int32_t>(source.width), static_cast<int32_t>(source.height), 1};
+        region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.dstOffsets[1] = {static_cast<int32_t>(width), static_cast<int32_t>(height), 1};
+        vkCmdBlitImage(cmd, source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_NEAREST);
+        SwapchainBarrier(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                         VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT);
+        ToRest(cmd, source);
+    });
     return true;
 }
 

@@ -174,6 +174,9 @@ VkShaderModule CreateShader(const uint32_t *code, size_t bytes) {
 }
 
 std::vector<uint8_t> LoadCache(const std::filesystem::path &path) {
+    if (path.empty()) {
+        return {};
+    }
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         return {};
@@ -194,6 +197,9 @@ std::vector<uint8_t> LoadCache(const std::filesystem::path &path) {
 }
 
 void SaveCache(const std::filesystem::path &path) {
+    if (path.empty()) {
+        return;
+    }
     size_t size = 0;
     if (vkGetPipelineCacheData(g.device, g.pipeline_cache, &size, nullptr) != VK_SUCCESS || size == 0) {
         return;

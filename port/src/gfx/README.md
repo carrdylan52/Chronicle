@@ -1,6 +1,7 @@
 # gfx
 
-The port's Vulkan renderer (1.3 or later, see "Device"). `gfx.hpp` is the whole public API (namespace `gfx`); everything
+The port's Vulkan renderer (1.3 or later, see "Device"). `gfx.hpp` is the drawing API (namespace `gfx`);
+`vulkan.hpp` exposes optional external runtime creation and image-transfer seams. Everything
 else is internal. No game header is reachable from here: `platform/`, `gfx/` and `audio/` build as
 `dc_host`, without `port.h` or the game's include paths. Replacement units include
 `"gfx/gfx.hpp"`.
@@ -10,6 +11,15 @@ else is internal. No game header is reachable from here: `platform/`, `gfx/` and
 - `RendererInit(window, config)` creates the device, the swapchain, the main targets and every
   pipeline (below). `config.pipeline_cache` defaults to `save/pipeline_cache.bin`;
   `config.progress(done, total)` is called on the calling thread while pipelines compile.
+  An empty `pipeline_cache` disables cache file reads/writes. `config.vulkan_provider`, when set,
+  supplies the Vulkan version, instance/device creation and mandatory physical device; no other
+  GPU is considered. The renderer owns those Vulkan objects. The provider must outlive the renderer,
+  and its external session/swapchains must be destroyed before `RendererShutdown`. Desktop play
+  leaves it null and has no OpenXR dependency. See `docs/DCVR.md` for the opt-in calibration tool.
+- `CopyDisplayToVulkanImage` in `vulkan.hpp` copies a successful display replay (`present=true`)
+  into an acquired external colour image, with transfer-destination usage on the same device/queue.
+  It preserves the source and returns the external image to `COLOR_ATTACHMENT_OPTIMAL`, waiting for
+  GPU completion before return. The caller owns acquisition, release and all external handle lifetime.
 - `BeginFrame()` / `EndFrame()` bracket a frame drawn as it is called. Two frames are in flight.
   `BeginFrame` returns false when there is nothing to draw to (minimised); draws are then dropped and
   `EndFrame` does nothing. Every frame starts on the main target. `EndFrame` presents. The game's

@@ -17,6 +17,8 @@ struct SDL_Window;
 // colour and alpha units, reverse-Z and how GS blending maps onto Vulkan.
 namespace gfx {
 
+class VulkanProvider;
+
 // The game's 2D space. 2D draws, scissors and main-target rectangles are given in it and mapped
 // to the target, letterboxed on the main target.
 inline constexpr float kLogicalWidth = 640.0f;
@@ -69,6 +71,7 @@ enum class PresentMode : uint8_t {
 
 struct RendererConfig {
     PresentMode           present_mode = PresentMode::Fifo;
+    // Empty disables both cache reads and writes (tools need no game/save directory).
     std::filesystem::path pipeline_cache = "save/pipeline_cache.bin";
     // Pixels per logical texel of render targets; 0 derives it from the window height at init.
     float       render_scale = 0.0f;
@@ -92,6 +95,8 @@ struct RendererConfig {
     // False sets one stencil reference and compare and write masks for both faces, as on a
     // portability-subset device without separateStencilMaskRef.
     bool separate_stencil_masks = true;
+    // External runtime negotiation; nullptr keeps the ordinary desktop device selection.
+    VulkanProvider *vulkan_provider = nullptr;
 };
 
 // What RendererInit settled on, from the config and the device.
