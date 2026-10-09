@@ -164,6 +164,50 @@ Relevant specification entries:
 [frame timing](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrWaitFrame.html),
 [frame submission](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrEndFrame.html).
 
+## Recommended next implementation
+
+The next software checkpoint should connect **one bounded, initially stationary Norune scene**
+to the headset backend. The game continues ticking, but player walking is introduced only after
+the view, scene coverage and scale are qualified. This is a recommendation for the next slice,
+not an implemented `--vr` mode or a settled design for the full game.
+
+1. **Connect startup and lifetime.** Add an explicit opt-in game VR path. The runtime must
+   initialize before `RendererInit` in `port/src/main.cpp`, supply its mandatory Vulkan device
+   through the existing provider, and create the session from that device. Destroy the XR session
+   and swapchains before the renderer. Keep desktop startup and OpenXR-disabled builds working.
+2. **Bridge timing and scene presentation.** `GameRenderTick` already retains the newest and
+   previous lists after one canonical render; `GamePresentBetweenTicks` is the existing display
+   seam. Feed those lists to the session with predicted eye poses/FOV and deliberate interpolation.
+   Do not call the game once per eye or change its configured tick rate to match headset refresh.
+   `FrameLoop::Frame` currently waits synchronously, while the game wait hook has a next-tick
+   deadline. A direct blocking insertion needs timing evidence; it is not a complete scheduling
+   design. Keep Vulkan calls on their owning thread. If a separate XR wait stage is needed,
+   exchange timing only and synchronize it explicitly, as the OpenXR frame specification requires.
+3. **Record enough geometry and identify the world camera.** Replace the capture's camera-0
+   assumption with an explicit supported-mode camera choice. Norune calls `EditAreaClip` before
+   recording, and that function rejects areas through `MGClipBox`; dungeon parts/NPCs are also
+   discarded using the original camera. Use conservative coverage for the bounded scene, including
+   head turns and lean, before eye replay. A wider projection after recording cannot fix omissions.
+4. **Qualify the selected scene's effects.** Eye swapchain images are separate already, but game
+   display targets and grab twins are shared. Audit clear/base requirements, shared-depth shadows,
+   water/refraction and previous-frame feedback before accepting a frame. Isolate effects that
+   retain eye-dependent contents, or explicitly exclude them from this diagnostic slice. Reusing
+   the calibration path alone does not establish independent game eye history. Measure the current
+   serial GPU waits at runtime eye sizes before optimizing or claiming a headset frame rate.
+5. **Validate the bridge without depending on a Quest.** Inject XR pacing at different display
+   rates and with delayed waits; verify gameplay/canonical counts are independent of eye/frame
+   count, and uploads/depth queries still happen once. Exercise focus/tracking loss, loading/cuts,
+   recenter/reference changes, unsupported frames and exit. Use real Vulkan eye transfers, verify
+   eye independence and canonical preservation, and retain the copied-save desktop comparison.
+
+The hardware lane can proceed independently: once Dylan's Quest is charged, pair and launch
+Air Link, then qualify `dcvr_room` before testing the game bridge. Record actual headset feedback
+separately from submission receipts. After the stationary game view works, attach it to the
+player's first-person body frame, calibrate game units/metre, handle head/wall overlap and readable
+HUD placement, and connect collision-aware conventional movement. Quest thumbsticks/buttons need
+OpenXR action bindings; the existing SDL controller glyph additions do not provide those bindings.
+Physical swings, hands, broad mode coverage and a combat redesign remain later scope.
+
 ## Development checkpoint — 2026-10-08
 
 Started from `a27772646f33e5a5795eb7dc8f01f78b1fe2b46c`, on `dcvr` tracking `fork/dcvr`.
@@ -210,3 +254,17 @@ Unicode-path room captures succeeded, existing capture directories were refused,
 numeric arguments returned exit 2. Local receipts include `build/validation/session-tests.log`,
 `session-focused-final.log`, `desktop-session-tests.log`, `openxr-room.json` and `norune-session.png`.
 Real saves, play installs, shortcuts, runtime settings and matching sources remain untouched.
+
+Rebased both implementation commits onto upstream `master` at
+`eded8d9b0a7488f0af0c90ce54d69fcc646c1052` (localized texture text and additional controller glyphs).
+The rebase had no source conflicts and `git range-diff` reports both patches unchanged. The
+implementation head became `f1e3805aed2832730075bfac34e728492226982b`; the pre-rebase head remains
+available locally as `dcvr-before-master-20261008-22bfd6b9`. Both Windows builds succeeded.
+The enabled suite had 309 passes and one desktop-focus skip out of 310 cases; the disabled suite
+passed all 291. The skipped case could not obtain window input focus and passed in the disabled
+build. All 19 DCVR cases passed. The copied-save Norune canonical image retained the exact baseline
+hash above, and both Norune stereo eyes and both synthetic calibration eyes are byte-identical
+to their pre-rebase captures. The fresh live probe still finds Oculus 1.208.0 and returns
+`XR_ERROR_FORM_FACTOR_UNAVAILABLE` before device/session creation. Dylan is charging his Quest;
+pairing and real headset validation remain pending. Rebase receipts are under
+`build/validation/rebase-*-tests.log`, `norune-rebase*`, `calibration-rebase*` and `vr-rebase/`.
