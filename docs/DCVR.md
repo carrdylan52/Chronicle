@@ -2,7 +2,10 @@
 
 DCVR is the optional PC VR experiment on Dylan's `dcvr` fork branch. Normal desktop play remains
 the default. The target is a small Norune room or dungeon floor with stereo depth, six-degree
-head tracking, and conventional movement. Physical swings, hands, and VR combat are later work.
+head tracking, and conventional movement. **Third-person play and its camera are on the critical
+path for the first playable milestone.** First-person elements retain their original limited role;
+a first-person conversion is not the primary design. Physical swings, hands, and a combat redesign
+are later work.
 
 ## Implemented development tools
 
@@ -133,8 +136,10 @@ $env:DC_AUDIO = 'off'
   --stereo-screenshot "$PWD/build/norune-stereo"
 ```
 
-The existing R/R2 first-person view and keyboard walking are desktop foundations. They have not
-been remapped to the headset. Synthetic captures can also use `--input` as described in [PC.md](PC.md).
+The existing R/R2 first-person view and keyboard walking are desktop foundations for those
+specific modes. They have not been remapped to the headset and are not the primary VR camera.
+Synthetic captures can also use `--input` as described in [PC.md](PC.md). The existing
+`build/validation/norune.input` toggles R2; omit that toggle for a normal third-person capture.
 
 ## Remaining integration gates
 
@@ -150,9 +155,13 @@ been remapped to the headset. Synthetic captures can also use `--input` as descr
 4. Expand or replace CPU culling before recording. A wider FOV or late head turn cannot recover
    discarded geometry. Capture camera 0 is a developer assumption, not reliable world-camera
    classification across menus, reflections and every game mode.
-5. Connect the player's first-person camera/controls, suppress camera easing/cuts where necessary,
-   calibrate scale and recentering, and handle head movement through walls. Place HUD/menus at an
-   explicit readable depth. Screen-space markers without depth are still unmoved.
+5. Integrate the third-person follow/orbit camera with an independent local head pose. Qualify
+   follow translation, camera input, zoom, wall recovery and camera-mode transitions; smoothing
+   the game rig must not delay head tracking. Calibrate scale/recentering and handle head offsets
+   through walls. Place HUD/menus at an explicit readable depth. Screen-space markers without
+   depth are still unmoved. Dungeon lock-on camera behavior is also required before claiming a
+   playable dungeon slice. First-person states need their own transitions, not forced replacement
+   of normal third-person play.
 6. Validate one bounded room/floor in the Quest with Dylan: eye orientation, stereo depth, lean,
    turn, conventional movement, menus, loss of tracking and exit. Loading, fishing, Georama and
    the rest of the game remain outside that first playable slice.
@@ -166,10 +175,12 @@ Relevant specification entries:
 
 ## Recommended next implementation
 
-The next software checkpoint should connect **one bounded, initially stationary Norune scene**
-to the headset backend. The game continues ticking, but player walking is introduced only after
-the view, scene coverage and scale are qualified. This is a recommendation for the next slice,
-not an implemented `--vr` mode or a settled design for the full game.
+The next software checkpoint should connect **one bounded Norune scene in its normal third-person
+mode** to the headset backend. An initially stationary third-person view can qualify the bridge,
+but following a moving character and controlling the camera are required before calling the slice
+playable. This corrects the earlier first-person emphasis: Dylan explicitly placed the third-person
+camera on the critical path. The following rig/head policy is a proposed starting implementation,
+not an implemented `--vr` mode or a comfort-qualified design.
 
 1. **Connect startup and lifetime.** Add an explicit opt-in game VR path. The runtime must
    initialize before `RendererInit` in `port/src/main.cpp`, supply its mandatory Vulkan device
@@ -183,28 +194,45 @@ not an implemented `--vr` mode or a settled design for the full game.
    deadline. A direct blocking insertion needs timing evidence; it is not a complete scheduling
    design. Keep Vulkan calls on their owning thread. If a separate XR wait stage is needed,
    exchange timing only and synchronize it explicitly, as the OpenXR frame specification requires.
-3. **Record enough geometry and identify the world camera.** Replace the capture's camera-0
+3. **Separate the third-person rig from head tracking.** Start with the game's follow camera as
+   the external observer's base position and orientation, with Toan remaining visible and controlled
+   by conventional movement. Compose the recentered head/eye pose after the interpolated base view,
+   as the existing stereo override permits. Head movement must not inject mouse/right-stick input,
+   orbit the rig around Toan or turn the character. Manual orbit/zoom and recenter are separate
+   controls. Game-rig easing can be evaluated independently; tracked head movement must stay direct.
+   Runtime FOV replaces the desktop projection, so qualify camera distance/framing as well as
+   world scale. The wider synthetic FOV currently makes Toan smaller in the frame. Eye separation
+   must follow the runtime; increasing IPD to compensate is not a substitute for framing/scale.
+   Audit automatic rotations, wall recovery, zoom changes, lock-on and talk/event camera changes.
+   Changes to rig orientation move the viewer too, so unchanged desktop follow behavior alone is
+   not a sufficient headset design. Define explicit transition handling and test it with Dylan.
+4. **Record enough geometry and identify the world camera.** Replace the capture's camera-0
    assumption with an explicit supported-mode camera choice. Norune calls `EditAreaClip` before
    recording, and that function rejects areas through `MGClipBox`; dungeon parts/NPCs are also
    discarded using the original camera. Use conservative coverage for the bounded scene, including
    head turns and lean, before eye replay. A wider projection after recording cannot fix omissions.
-4. **Qualify the selected scene's effects.** Eye swapchain images are separate already, but game
+5. **Qualify the selected scene's effects.** Eye swapchain images are separate already, but game
    display targets and grab twins are shared. Audit clear/base requirements, shared-depth shadows,
    water/refraction and previous-frame feedback before accepting a frame. Isolate effects that
    retain eye-dependent contents, or explicitly exclude them from this diagnostic slice. Reusing
    the calibration path alone does not establish independent game eye history. Measure the current
    serial GPU waits at runtime eye sizes before optimizing or claiming a headset frame rate.
-5. **Validate the bridge without depending on a Quest.** Inject XR pacing at different display
+6. **Validate the bridge without depending on a Quest.** Inject XR pacing at different display
    rates and with delayed waits; verify gameplay/canonical counts are independent of eye/frame
    count, and uploads/depth queries still happen once. Exercise focus/tracking loss, loading/cuts,
-   recenter/reference changes, unsupported frames and exit. Use real Vulkan eye transfers, verify
-   eye independence and canonical preservation, and retain the copied-save desktop comparison.
+   recenter/reference changes, unsupported frames and exit. Exercise a moving third-person base
+   camera with independent head turns/lean, manual orbit/zoom and wall recovery. Verify that head
+   pose does not alter avatar or camera-control input, and cover camera selection/transitions.
+   Use real Vulkan eye transfers, verify eye independence and canonical preservation, and retain
+   the copied-save desktop comparison. A stationary or first-person-only pass cannot qualify the
+   third-person playable milestone.
 
 The hardware lane can proceed independently: once Dylan's Quest is charged, pair and launch
 Air Link, then qualify `dcvr_room` before testing the game bridge. Record actual headset feedback
-separately from submission receipts. After the stationary game view works, attach it to the
-player's first-person body frame, calibrate game units/metre, handle head/wall overlap and readable
-HUD placement, and connect collision-aware conventional movement. Quest thumbsticks/buttons need
+separately from submission receipts. After the stationary third-person game view works, qualify
+following Toan during conventional movement, orbit/zoom and wall recovery, calibrate game units/metre,
+and handle head/wall overlap and readable HUD placement. Preserve existing game collision and
+movement semantics. Quest thumbsticks/buttons need
 OpenXR action bindings; the existing SDL controller glyph additions do not provide those bindings.
 Physical swings, hands, broad mode coverage and a combat redesign remain later scope.
 
@@ -268,3 +296,13 @@ to their pre-rebase captures. The fresh live probe still finds Oculus 1.208.0 an
 `XR_ERROR_FORM_FACTOR_UNAVAILABLE` before device/session creation. Dylan is charging his Quest;
 pairing and real headset validation remain pending. Rebase receipts are under
 `build/validation/rebase-*-tests.log`, `norune-rebase*`, `calibration-rebase*` and `vr-rebase/`.
+
+Dylan subsequently clarified that third-person play is fundamental and its camera is on the
+critical path. The next-slice plan and integration gates above now require it; the earlier
+first-person-first recommendation is superseded. A new copied-save Norune capture ran for 260
+ticks with a neutral input script (no R2/first-person toggle), at 960x720. The canonical image and
+synthetic eye image were visually inspected with Toan visible in third person, and the left/right
+PNGs are different. The wider synthetic projection changes character framing, reinforcing the
+need to qualify third-person camera distance and scale. This is stationary synthetic evidence,
+not live tracking, follow/orbit qualification or headset validation. No renderer/gameplay code
+changed for this correction. Receipts are `build/validation/norune-third-person*`.
