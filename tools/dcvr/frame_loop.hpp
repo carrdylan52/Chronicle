@@ -8,6 +8,7 @@
 
 #include <array>
 #include <functional>
+#include <future>
 #include <vector>
 
 namespace dcvr {
@@ -61,8 +62,12 @@ public:
 
     FrameLoop(XrInstance instance, XrSession session, XrSpace local, XrSpace head,
               const std::array<EyeSwapchain, 2> &eyes, FrameApi api = {});
+    ~FrameLoop();
+    // Only xrWaitFrame runs on a worker. Main-thread Frame returns Idle while it waits;
+    // no second wait is queued before the preceding frame has been ended.
+    void AsyncWait(bool enabled);
     void        Poll();
-    FrameResult Frame(const RenderEye &render, const FinishGpu &finish);
+    FrameResult Frame(const RenderEye &render, const FinishGpu &finish, bool render_enabled = true);
     void        RequestExit();
 
     bool Running() const { return running_; }
@@ -79,6 +84,10 @@ public:
 
 private:
     void                               Observe(XrResult result, const char *call);
+    void                               DrainWait() noexcept;
+    struct WaitResult { XrResult result; XrFrameState state; };
+    bool                               async_wait_ = false;
+    std::future<WaitResult>             pending_wait_;
     XrInstance                         instance_;
     XrSession                          session_;
     XrSpace                            local_, head_;

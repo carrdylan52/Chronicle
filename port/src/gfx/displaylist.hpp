@@ -129,6 +129,8 @@ struct DisplayList {
     std::vector<detail::Entry>      entries;
     std::vector<detail::MeshRecord> records;
     std::vector<detail::Mat4>       cameras;
+    // Explicit world camera selected by a supported game mode; -1 for menus/loading.
+    int32_t                         world_camera = -1;
     std::vector<detail::SpriteScene> scenes;
     // While recording: the scene of the last mesh drawn on the current target, or -1, and on each
     // target drawn into so far (the fire's texture is blended between the map and its sprites).

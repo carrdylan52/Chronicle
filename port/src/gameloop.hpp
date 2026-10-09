@@ -96,6 +96,13 @@ struct GamePresentSettings {
 };
 
 void GameSetPresentSettings(const GamePresentSettings &settings);
+// Optional host presentation path. Gameplay records/renders canonically once as usual.
+// between=true must return promptly; a true result asks the clock to call it again.
+using GamePresentHook = bool (*)(const gfx::DisplayList &, const gfx::DisplayList *, float alpha,
+                                 bool between, std::chrono::steady_clock::time_point deadline);
+void GameSetPresentHook(GamePresentHook hook);
+void GameSetVrEnabled(bool enabled);
+bool GameVrScene();
 
 void GameRenderTick(gfx::DisplayListRef list);
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick);

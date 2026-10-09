@@ -132,6 +132,9 @@ InputRumble InputGetRumble(int pad);
 // Replaces what InputPoll reads for one pad, for tests and replays; nullptr
 // hands the pad back to the devices.
 void InputSetOverride(int pad, const InputPadState *state);
+// Host focus gate (e.g. OpenXR dashboard). Suppresses gameplay input, retaining bindings,
+// device/override state and connection. Drops accumulated mouse motion when the gate changes.
+void InputSetHostPaused(bool paused);
 
 // base with the keyboard and mouse folded in through the bindings: buttons add, and an axis takes
 // the keyboard and mouse deflection unless base deflects it past the game's dead zone.

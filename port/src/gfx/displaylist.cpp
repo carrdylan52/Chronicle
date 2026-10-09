@@ -795,7 +795,8 @@ TextureBinding GrabbedBinding(const TextureBinding &binding, bool canonical) {
     return out;
 }
 
-void Replay(const DisplayList &list, bool canonical, const Overrides *overrides, bool host = false) {
+void Replay(const DisplayList &list, bool canonical, const Overrides *overrides, bool host = false,
+            bool world_only = false) {
     g.replaying = true;
     g.quiet = !canonical;
     g.host_draws = host;
@@ -807,6 +808,9 @@ void Replay(const DisplayList &list, bool canonical, const Overrides *overrides,
             [&](const auto &e) {
                 using T = std::decay_t<decltype(e)>;
                 if constexpr (std::is_same_v<T, Draw2DEntry>) {
+                    if (world_only && g.target == kMainTarget && e.scene < 0) {
+                        return;
+                    }
                     const std::vector<Vertex2D> *vertices = &e.vertices;
                     if (overrides != nullptr) {
                         if (auto it = overrides->sprites.find(&e); it != overrides->sprites.end()) {
@@ -1049,6 +1053,12 @@ DisplayListRef EndRecording() {
 
 bool Recording() { return g.list != nullptr; }
 
+void RecordWorldCamera(const float view[16]) {
+    if (g.list) { g.list->world_camera = static_cast<int32_t>(CameraIndex(*g.list, view)); }
+}
+
+bool DisplayReplayReady() { return !g.in_frame && !g.list && g.canonical_newest; }
+
 void CutInterpolation() {
     if (g.list != nullptr) {
         g.list->cut = true;
@@ -1102,7 +1112,8 @@ bool RenderList(const DisplayList &list, float alpha, const RenderOptions &optio
     if (!OpenListFrame(false, options.present, list.needs_base)) {
         return false;
     }
-    Replay(list, false, (interpolate || options.view_override) ? &overrides : nullptr, options.host);
+    Replay(list, false, (interpolate || options.view_override) ? &overrides : nullptr, options.host,
+           options.world_only);
     if (options.overlay != nullptr && options.overlay->instance == g.renderer_instance) {
         SetRenderTarget(kMainTarget);
         Replay(*options.overlay, false, nullptr, true);

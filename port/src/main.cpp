@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <cmath>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -36,6 +38,9 @@
 #include "title/opening.hpp"
 #include "title/rushmovi.hpp"
 #include "title/title.hpp"
+#ifdef DCVR_GAME
+#include "game_bridge.hpp"
+#endif
 
 int  EditInit(void *param);
 int  EditLoop();
@@ -46,6 +51,11 @@ namespace fs = std::filesystem;
 namespace {
 
 struct Options {
+#ifdef DCVR_GAME
+    const char *vr_synthetic = nullptr;
+    int vr_seconds = 120;
+    float vr_scale = 10;
+#endif
     bool         headless = false;
     bool         offscreen = false;
     std::int64_t frames = -1;
@@ -65,8 +75,15 @@ struct Options {
 };
 
 Options g_options;
+#ifdef DCVR_GAME
+dcvr::GameBridge *g_vr = nullptr;
+#endif
 
 [[noreturn]] void Usage(const char *program) {
+#ifdef DCVR_GAME
+    std::fprintf(stderr, "DCVR: third-person Norune only. --vr-seconds 120 (1..600), "
+                         "--vr-scale 10 (1..100 game units/metre), --vr-synthetic NEW_DIR.\n");
+#endif
     std::fprintf(stderr,
                  "usage: %s [--data DIR] [--save DIR] [--headless] [--frames N] [--screenshot PATH]\n"
                  "          [--input FILE] [--width W] [--height H] [--offscreen]\n"
@@ -153,6 +170,22 @@ Options ParseOptions(int argc, const char **argv) {
             options.screenshot_fps = true;
         } else if (arg == "--display-per-tick") {
             options.display_per_tick = static_cast<int>(number());
+#ifdef DCVR_GAME
+        } else if (arg == "--vr-synthetic") {
+            options.vr_synthetic = value();
+            options.headless = true;
+            options.offscreen = true;
+        } else if (arg == "--vr-seconds") {
+            auto duration = number();
+            if (duration < 1 || duration > 600) Usage(argv[0]);
+            options.vr_seconds = static_cast<int>(duration);
+        } else if (arg == "--vr-scale") {
+            const char *text = value();
+            char *end = nullptr;
+            options.vr_scale = std::strtof(text, &end);
+            if (end == text || *end || !std::isfinite(options.vr_scale) ||
+                options.vr_scale < 1 || options.vr_scale > 100) Usage(argv[0]);
+#endif
         } else {
             Usage(argv[0]);
         }
@@ -160,6 +193,15 @@ Options ParseOptions(int argc, const char **argv) {
     if (options.stereo_screenshot && (!options.offscreen || options.frames <= 0)) {
         Usage(argv[0]);
     }
+#ifdef DCVR_GAME
+    if ((options.jump && std::string_view(options.jump) != "edit:0") ||
+        (!options.vr_synthetic && options.headless) ||
+        (options.vr_synthetic && options.frames <= 0)) Usage(argv[0]);
+    options.jump = "edit:0";
+    options.fast_load = true;
+    if (!options.width) options.width = 960;
+    if (!options.height) options.height = 720;
+#endif
     return options;
 }
 
@@ -228,6 +270,7 @@ void PumpHost() {
     if (!WindowPollEvents()) {
         GameRequestStop();
     }
+#ifndef DCVR_GAME
     DisplayPump();
     // A change of video.aspect or video.ui_scale, or the Options screen opening or closing, waits
     // for a pump outside a frame.
@@ -238,8 +281,12 @@ void PumpHost() {
             gfx::SetFrameLayout(layout);
         }
     }
+#endif
     InputPoll();
     InputScriptApply(GameFrameCount());
+#ifdef DCVR_GAME
+    if (g_vr) g_vr->Pump();
+#endif
 }
 
 void LoadInputScript(const char *path) {
@@ -419,8 +466,6 @@ int Run(int argc, const char **argv) {
     WindowConfig window = DisplayWindowConfig(config);
     bool         offscreen = options.offscreen || (options.headless && !gfx::HeadlessSurfaceAvailable());
     window.vulkan = !offscreen;
-    WindowInit(window);
-    InputInit();
 
     gfx::RendererConfig renderer;
     renderer.present_mode = PresentMode(config.present_mode);
@@ -428,6 +473,14 @@ int Run(int argc, const char **argv) {
     renderer.progress = ReportShaderProgress;
     renderer.offscreen = offscreen;
     renderer.layout = Layout(config);
+#ifdef DCVR_GAME
+    dcvr::GameBridge vr(options.vr_synthetic ? PathsFromUtf8(options.vr_synthetic) : fs::path{},
+                        options.vr_seconds, options.vr_scale);
+    g_vr = &vr;
+    vr.Configure(window, renderer);
+#endif
+    WindowInit(window);
+    InputInit();
     gfx::RendererInit(WindowHandle(), renderer);
     gfx::SetAnisotropy(config.anisotropy);
 
@@ -436,6 +489,10 @@ int Run(int argc, const char **argv) {
     AudioOutputStart(audio::DefaultMixer().Rate(), RenderAudio, nullptr);
 
     ClockSetTickRate(config.tick_rate);
+#ifdef DCVR_GAME
+    ClockSetTickRate(60); // Retail gameplay cadence, independent of headset refresh.
+    vr.Start();
+#endif
     ClockSetUnbounded(options.headless);
     ClockAddPumpHook(PumpHost);
     GameSetFrameBudget(options.frames);
@@ -456,6 +513,11 @@ int Run(int argc, const char **argv) {
         status = kExitFailure;
     }
     ReportPresentStats();
+#ifdef DCVR_GAME
+    vr.Stop();
+    g_vr = nullptr;
+    if (!vr.Succeeded()) status = kExitFailure;
+#endif
 
     ConfigRemoveChangeHook(LocalizeConfigChanged);
     ConfigRemoveChangeHook(GameOptionsChanged);
@@ -472,8 +534,16 @@ int Run(int argc, const char **argv) {
 
 } // namespace
 
+int RunSafely(int argc, const char **argv) {
+    try { return Run(argc, argv); }
+    catch (const std::exception &failure) {
+        std::fprintf(stderr, "Chronicle startup: %s\n", failure.what());
+        return kExitFailure;
+    }
+}
+
 PC_OVERRIDE int main(int argc, const char **argv, const char **envp) {
-    return Run(argc, argv);
+    return RunSafely(argc, argv);
 }
 
 extern "C" {
@@ -661,6 +731,6 @@ int wmain(int argc, wchar_t **wide_argv) {
         argv.push_back(arg.c_str());
     }
     argv.push_back(nullptr);
-    return Run(argc, argv.data());
+    return RunSafely(argc, argv.data());
 }
 #endif

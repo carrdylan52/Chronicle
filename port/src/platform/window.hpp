@@ -79,3 +79,4 @@ std::vector<DisplayModeSize> WindowDisplayModes();
 bool WindowPollEvents();
 // Sees every event WindowPollEvents pumps, before the window handles it.
 void WindowAddEventHook(void (*hook)(const SDL_Event &event));
+void WindowRemoveEventHook(void (*hook)(const SDL_Event &event));

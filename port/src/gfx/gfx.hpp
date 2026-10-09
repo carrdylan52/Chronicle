@@ -564,6 +564,9 @@ bool           Recording();
 void CutInterpolation();
 // Its camera (MeshTransform::view) is not; the objects still are.
 void CutCameraInterpolation();
+void RecordWorldCamera(const float view[16]);
+// Can a display replay start now, without disrupting recording or a loading present?
+bool DisplayReplayReady();
 
 // Experimental eye replay: replace one recorded camera's projection and apply an eye-space
 // transform AFTER its (possibly interpolated) view. Both matrices are column-major. The game
@@ -594,6 +597,9 @@ struct RenderOptions {
     // Meshes and depth-tested world sprites belonging to this camera; HUD and other cameras
     // retain their recorded mapping. Invalid matrices, camera index, or canonical use are refused.
     const ViewOverride *view_override = nullptr;
+    // Experimental world-only VR slice: omit screen-space UI/composites on the main target.
+    // Depth-tested sprites and draws into other targets are retained.
+    bool world_only = false;
 };
 
 // False when nothing was rendered: the list belongs to another renderer, a frame is open, or a

@@ -6,6 +6,8 @@
 #include <numbers>
 
 #include "gfx/stereo.hpp"
+#include "gfx/displaylist.hpp"
+#include "gameloop.hpp"
 #include "gfx_fixture.hpp"
 
 using namespace dc::test;
@@ -108,6 +110,16 @@ double Center(const std::vector<uint8_t> &pixels, uint32_t width, int channel) {
 void Read(GfxFixture &fixture) {
     ASSERT_TRUE(gfx::ReadbackFrame(fixture.pixels, fixture.width, fixture.height));
 }
+int host_frames;
+bool HostStereo(const gfx::DisplayList &list, const gfx::DisplayList *previous, float alpha,
+                bool, std::chrono::steady_clock::time_point) {
+    for (int eye = 0; eye < 2; ++eye) {
+        auto view = Eye((eye ? .032f : -.032f) + host_frames * .001f);
+        EXPECT_TRUE(gfx::RenderList(list, alpha, {.previous = previous, .present = true, .view_override = &view}));
+    }
+    ++host_frames;
+    return true;
+}
 } // namespace
 
 TEST(StereoMath, AsymmetricFrustumEdgesAndReverseDepth) {
@@ -208,6 +220,93 @@ TEST(GfxStereo, ProjectionOnlyOverrideReprojectsWorldSpritesAndKeepsHud) {
     Read(fixture);
     EXPECT_NEAR(Center(fixture.pixels, fixture.width, 1) - before, 64, 1);
     EXPECT_TRUE(fixture.PixelNear(20, 20, 128, 128, 128));
+}
+
+TEST(StereoMath, WorldReplayRejectsLoadingCutsBaseImagesAndPreviousFrameFeedback) {
+    gfx::DisplayList list;
+    EXPECT_FALSE(gfx::StereoWorldReplaySafe(list));
+    list.main_cleared = true;
+    list.world_camera = 0;
+    list.cameras.push_back({});
+    gfx::detail::MeshRecord record;
+    record.has_transform = true;
+    list.records.push_back(record);
+    EXPECT_TRUE(gfx::StereoWorldReplaySafe(list));
+    for (bool *flag : {&list.needs_base, &list.cut, &list.camera_cut}) {
+        *flag = true;
+        EXPECT_FALSE(gfx::StereoWorldReplaySafe(list));
+        *flag = false;
+    }
+    gfx::detail::MeshEntry mesh;
+    mesh.binding.texture = gfx::kPreviousFrame;
+    list.entries.emplace_back(mesh);
+    EXPECT_FALSE(gfx::StereoWorldReplaySafe(list));
+    list.entries.clear();
+    gfx::detail::CopyEntry copy{};
+    copy.src = gfx::kPreviousFrame;
+    list.entries.emplace_back(copy);
+    EXPECT_FALSE(gfx::StereoWorldReplaySafe(list));
+}
+
+TEST(GfxStereo, WorldOnlyReplayKeepsDepthSpritesAndCanonicalHud) {
+    GfxFixture fixture;
+    auto list = Scene(0, true);
+    ASSERT_TRUE(gfx::RenderList(*list, 1, {.canonical = true}));
+    auto eye = Eye();
+    ASSERT_TRUE(gfx::RenderList(*list, 1, {.present = true, .view_override = &eye, .world_only = true}));
+    Read(fixture);
+    EXPECT_TRUE(fixture.PixelNear(20, 20, 0, 0, 0));
+    EXPECT_GT(Center(fixture.pixels, fixture.width, 1), 0);
+    ASSERT_TRUE(gfx::PresentCanonical());
+    Read(fixture);
+    EXPECT_TRUE(fixture.PixelNear(20, 20, 128, 128, 128));
+}
+
+TEST(GfxStereo, ExplicitWorldCameraSharesTheRecordedMeshCamera) {
+    GfxFixture fixture;
+    gfx::BeginRecording();
+    EXPECT_FALSE(gfx::DisplayReplayReady());
+    auto transform = gfx::IdentityMeshTransform();
+    std::copy_n(Eye().projection, 16, transform.projection);
+    Triangle(0, 2, 0, transform);
+    transform.view[12] = 12;
+    gfx::RecordWorldCamera(transform.view);
+    Triangle(0, 2, 1, transform);
+    auto list = gfx::EndRecording();
+    ASSERT_EQ(list->world_camera, 1);
+    ASSERT_EQ(list->cameras.size(), 2u);
+    EXPECT_EQ(list->records.back().camera, uint32_t(list->world_camera));
+    ASSERT_TRUE(gfx::RenderList(*list, 1, {.canonical = true}));
+    EXPECT_TRUE(gfx::DisplayReplayReady());
+}
+
+TEST(GfxStereo, GameHostPresentationPreservesCanonicalCountsAcrossHeadsetRates) {
+    GfxFixture fixture;
+    auto texture = gfx::CreateTexture({1, 1, gfx::TextureFormat::Rgba8, 1, true});
+    GameSetPresentHook(HostStereo);
+    for (int rate : {72, 90, 120}) {
+        host_frames = 0;
+        const auto before = GamePresentStatistics().ticks;
+        // Ten real canonical renders. Sampling a host frame at a different rate never runs
+        // GameRenderTick, uploads or depth queries again, regardless of the number of eyes.
+        for (int tick = 1; tick <= 10; ++tick) {
+            GameRenderTick(Scene(0, false, texture));
+            const auto depth = gfx::DepthResult(0);
+            uint32_t green = Rgba(0, 128, 0);
+            EXPECT_TRUE(gfx::UpdateTexture(texture, 0, 0, 0, 1, 1, &green));
+            const int wanted = tick * rate / 60;
+            while (host_frames < wanted) GamePresentBetweenTicks(.5, std::chrono::steady_clock::now());
+            EXPECT_EQ(gfx::DepthResult(0), depth);
+            std::vector<uint8_t> texels;
+            uint32_t w, h;
+            EXPECT_TRUE(gfx::ReadbackTexture(texture, texels, w, h));
+            EXPECT_EQ(texels[1], 128); // Eye replays did not repeat the canonical red upload.
+        }
+        EXPECT_EQ(GamePresentStatistics().ticks - before, 10u);
+        EXPECT_EQ(host_frames, 10 * rate / 60);
+    }
+    GameSetPresentHook(nullptr);
+    gfx::DestroyTexture(texture);
 }
 
 TEST(GfxStereo, EyeTransformComposesWithInterpolatedCameraAndSurvivesCuts) {

@@ -3,7 +3,10 @@
 
 #include <cstring>
 #include <deque>
+#include <atomic>
+#include <future>
 #include <numbers>
+#include <thread>
 
 #include "frame_loop.hpp"
 #include "gfx/context.hpp"
@@ -164,6 +167,14 @@ struct Fake {
 
 Fake *Fake::active = nullptr;
 
+std::shared_future<void> wait_release;
+std::atomic<bool> wait_entered;
+XrResult XRAPI_CALL GatedWait(XrSession s, const XrFrameWaitInfo *info, XrFrameState *state) {
+    wait_entered = true;
+    wait_release.wait();
+    return Fake::WaitFrame(s, info, state);
+}
+
 struct DCVRFrame : testing::Test {
     Fake                        fake;
     std::array<EyeSwapchain, 2> eyes;
@@ -244,6 +255,63 @@ TEST_F(DCVRFrame, HiddenAndDiscardedFramesEndWithoutImages) {
     EXPECT_EQ(loop->Frame(Draw(), Finish()), FrameResult::Empty);
     EXPECT_EQ(fake.trace, (std::vector<std::string>{"wait", "begin", "end"}));
     EXPECT_EQ(loop->Submitted(), 0u);
+}
+
+TEST_F(DCVRFrame, UnsupportedGameFrameEndsWithoutLocatingOrAcquiring) {
+    Ready();
+    EXPECT_EQ(loop->Frame(Draw(), Finish(), false), FrameResult::Empty);
+    EXPECT_EQ(fake.trace, (std::vector<std::string>{"wait", "begin", "end"}));
+    EXPECT_EQ(fake.layers, 0u);
+}
+
+TEST_F(DCVRFrame, DelayedRuntimeWaitLeavesGameplayThreadAvailableAndQueuesOnlyOneFrame) {
+    std::promise<void> release;
+    wait_release = release.get_future().share();
+    wait_entered = false;
+    auto api = fake.Api();
+    api.wait_frame = GatedWait;
+    loop = std::make_unique<FrameLoop>(instance, session, local, head_space, eyes, api);
+    loop->AsyncWait(true);
+    Ready();
+    EXPECT_EQ(loop->Frame(Draw(), Finish()), FrameResult::Idle);
+    // Simulated game logic keeps advancing while the runtime wait is deliberately blocked.
+    for (int tick = 0; tick < 120; ++tick) {
+        EXPECT_EQ(loop->Frame(Draw(), Finish()), FrameResult::Idle);
+        EXPECT_EQ(loop->Frames(), 0u);
+    }
+    release.set_value();
+    auto result = FrameResult::Idle;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (result == FrameResult::Idle && std::chrono::steady_clock::now() < deadline) {
+        result = loop->Frame(Draw(), Finish());
+        std::this_thread::yield();
+    }
+    EXPECT_EQ(result, FrameResult::Rendered);
+    EXPECT_EQ(loop->Frames(), 1u);
+    EXPECT_EQ(loop->Submitted(), 1u);
+    EXPECT_EQ(std::count(fake.trace.begin(), fake.trace.end(), "wait"), 1);
+    EXPECT_EQ(fake.trace.back(), "end");
+}
+
+TEST_F(DCVRFrame, StoppingJoinsPendingWaitBeforeEndingSession) {
+    std::promise<void> release;
+    wait_release = release.get_future().share();
+    wait_entered = false;
+    auto api = fake.Api();
+    api.wait_frame = GatedWait;
+    loop = std::make_unique<FrameLoop>(instance, session, local, head_space, eyes, api);
+    loop->AsyncWait(true);
+    Ready();
+    EXPECT_EQ(loop->Frame(Draw(), Finish()), FrameResult::Idle);
+    auto unblock = std::async(std::launch::async, [&] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        release.set_value();
+    });
+    fake.State(XR_SESSION_STATE_STOPPING);
+    loop->Poll();
+    unblock.get();
+    EXPECT_EQ(fake.trace, (std::vector<std::string>{"wait", "stop"}));
+    EXPECT_FALSE(loop->Running());
 }
 
 TEST_F(DCVRFrame, InvalidTrackingAndViewCountSuppressDrawing) {

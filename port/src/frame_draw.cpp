@@ -5,6 +5,7 @@
 
 #include "boxvu0.hpp"
 #include "draw3d.hpp"
+#include "gameloop.hpp"
 #include "frame.hpp"
 #include "framevu1.hpp"
 #include "mathutil.hpp"
@@ -194,7 +195,7 @@ PC_OVERRIDE int CFrameVu1::DrawVu1(unsigned int *packet, RenderInfo *info) {
         ShadowMatrix(info->shadow, info->light_direction, info->shadow_point, info->shadow_normal);
     }
 
-    if (visual && attr.draw_on && attr.cull_enable) {
+    if (visual && attr.draw_on && attr.cull_enable && !GameVrScene()) {
         MulFrameMatrix(screen_matrix, info->view_scaled, matrix);
         float inv_scale = 1.0f / info->scale[0];
 

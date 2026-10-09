@@ -246,3 +246,4 @@ bool WindowPollEvents() {
 }
 
 void WindowAddEventHook(void (*hook)(const SDL_Event &event)) { g_hooks.push_back(hook); }
+void WindowRemoveEventHook(void (*hook)(const SDL_Event &event)) { std::erase(g_hooks, hook); }

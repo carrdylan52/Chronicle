@@ -39,6 +39,7 @@
 #include "gamemode.hpp"
 #include "gamepad.hpp"
 #include "gfx/gfx.hpp"
+#include "gameloop.hpp"
 #include "mainselect.hpp"
 #include "mapparts.hpp"
 #include "mathutil.hpp"
@@ -692,6 +693,9 @@ PC_OVERRIDE int EditLoop() {
     NowCamera->GetCameraMatrix(view);
     NowCamera->GetPos(eye);
     MGSetViewMatrix(view, eye);
+    if (GameVrScene()) {
+        gfx::RecordWorldCamera(&view[0][0]);
+    }
 
     if (GameMode != ED_MODE_GEORAMA && GameMode != ED_MODE_GEORAMA_MENU_INIT && GameMode != ED_MODE_RETURN_MENU_GEORAMA) {
         if (move_count > 0) {
@@ -699,6 +703,15 @@ PC_OVERRIDE int EditLoop() {
         } else {
             pEditGround->EditAreaClip(NowCamera, 20000.0f);
         }
+    }
+
+    if (GameVrScene()) {
+        // Record all four Norune areas before late head pose. The original clip plane and
+        // area selection cannot know where either headset eye will be looking.
+        for (int area = 0; area < 4; ++area) {
+            pEditGround->area_visible[area] = pEditGround->areas[area] != nullptr;
+        }
+        pEditGround->clip_plane[3] = -1;
     }
 
     switch (GameMode) {
@@ -1182,7 +1195,7 @@ static void EditMainDraw() {
 
             TexManager.ReloadTexture(Vif1Packet, 0x15);
             TexAnime.TexAnime(0x15);
-            pEditGround->DrawWater(0x15);
+            if (!GameVrScene()) pEditGround->DrawWater(0x15);
 
             switch (GameMode) {
                 case ED_MODE_WALK:
@@ -1196,6 +1209,7 @@ static void EditMainDraw() {
                 case ED_MODE_MENU_INIT:
                 case ED_MODE_GEORAMA_MENU_INIT:
                 case ED_MODE_RETURN_MENU_GEORAMA: {
+                    if (GameVrScene()) break; // Eye-dependent refraction is outside this slice.
                     sceGsTex0 frame;
                     CRect_i_  screen;
                     sceGsTex0 water;
@@ -1219,10 +1233,10 @@ static void EditMainDraw() {
                 }
             }
 
-            pEditGround->DrawRipple(0x15);
+            if (!GameVrScene()) pEditGround->DrawRipple(0x15);
 
 
-            if (depth_of_field != 0) {
+            if (depth_of_field != 0 && !GameVrScene()) {
                 int dof_level = 2;
 
                 if (((int *) SaveData->GetConfigData())[6] != 0) {
@@ -1357,12 +1371,12 @@ static void EditMainDraw() {
                     }
                 }
 
-                EdDrawCharacter(Chara, detail, 0xA, EdVillager, marks, shadow_on, event);
+                EdDrawCharacter(Chara, detail, 0xA, EdVillager, marks, GameVrScene() ? 0 : shadow_on, event);
                 break;
             }
         }
 
-        if (EdDrawOffMapShadow == 0 && EdDrawOffMap == 0) {
+        if (EdDrawOffMapShadow == 0 && EdDrawOffMap == 0 && !GameVrScene()) {
             float saved_light[4][4];
             float shadow_light[4][4];
             float light_colour[4][4];

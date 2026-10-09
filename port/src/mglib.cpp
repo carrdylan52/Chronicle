@@ -886,6 +886,9 @@ PC_OVERRIDE int MGRotTransPers2D(int *screen, float *position, int fog) {
 // view_screen keeps retail's GS field units, so the vertical bound is half the frame's half-height;
 // both bounds are what the current target shows, which past a 4:3 window is wider than retail's.
 PC_OVERRIDE int MGClipVertex(float *position) {
+    // A late head turn can look outside the recorded desktop frustum. The bounded Norune
+    // prototype records all geometry, leaving per-eye clipping to Vulkan.
+    if (GameVrScene()) { return 0; }
     sceVu0FVECTOR point;
     int           outside = 0;
     Draw3DExtent  extent = Draw3DVisibleExtent();

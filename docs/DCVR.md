@@ -22,6 +22,12 @@ are later work.
   projection layers with predicted poses/FOV. It needs no game data or save directory. Its room
   is 6×6×3 metres, with a one-metre floor grid, a half-metre red cube and a one-metre blue cube.
   It is a preparation step for the Norune/dungeon milestone, not Dark Cloud gameplay in VR.
+- `dcvr_game` connects **normal third-person Norune walking** to that backend. It records and
+  renders one canonical game frame per logic tick, then replays drawing for each runtime eye
+  using the predicted head/eye poses and asymmetric FOV. Toan keeps the existing keyboard/SDL
+  gamepad movement, collision and follow camera. The recentered head pose composes after the
+  interpolated game camera; it never injects a stick or mouse input. F9 recenters, Esc exits.
+  This separate opt-in executable leaves ordinary `darkcloud` free of an OpenXR dependency.
 - The session loop begins on READY, ends on STOPPING and exits on instance/session loss. A
   stopped session can start again on READY. Hidden frames and invalid positional/orientation
   tracking submit zero layers. Each acquired image is waited, drawn, returned to Vulkan's
@@ -48,10 +54,51 @@ are later work.
   symmetric 90-degree fields of view, and **provisional** 10 game units/metre. `capture.json`
   records those assumptions. The directory must be new and its parent must exist.
 
-**Dark Cloud gameplay is not connected to the headset yet.** The calibration submission path is
-implemented and tested with an injected OpenXR boundary and real Vulkan images. A real headset
-session has not been verified. Synthetic captures and successful frame submission receipts do
-not establish comfort, visual correctness in the Quest, or the game's world scale.
+**The third-person game submission path is implemented; a real headset session remains unverified.**
+The synthetic game path and injected OpenXR/Vulkan tests qualify software behavior only. They
+do not establish comfort, visual correctness in Quest, world scale or headset frame rate.
+
+## Dylan's first headset test
+
+Pair and **Launch Air Link inside Quest**, leaving Meta Horizon Link running on the PC. Use
+Link → Use Air Link → this PC → Pair, compare the pairing code with the PC, Confirm, then Launch.
+The exact navigation label varies with Horizon OS; the current steps are on
+[Meta's Air Link setup page](https://www.meta.com/help/quest/509273027107091/).
+
+1. Double-click `tools/windows/test-dcvr-room.cmd`. It probes prerequisites first, then opens
+   the calibration room for up to 60 seconds. Keep its keyboard window focused. R recenters;
+   Esc exits. Check stereo, head rotation and leaning before proceeding to the game.
+2. Double-click `tools/windows/test-dcvr-norune.cmd`. It creates a **new copied save** for every
+   run and opens Norune for up to two minutes. Focus the DCVR window. WASD or an ordinary SDL
+   gamepad moves Toan; mouse/right stick controls the existing camera. The copied config enables
+   wheel zoom; middle click resets that zoom. **F9** recenters the head and **Esc** exits.
+3. First look around without walking. Then take a few steps with Toan visible, try camera orbit
+   and a small zoom change, and approach a wall slowly. Report framing, scale, follow-camera
+   motion and any missing geometry separately from whether the app merely submitted frames.
+
+Receipts and logs are in `build/dcvr/vr-tests/<new run>/`. Norune's `save/dcvr-report.json` records
+runtime status, canonical ticks, submitted frames, eye renders and camera/avatar movement.
+The launcher terminates only its owned test child if it exceeds the duration plus 45 seconds.
+It never switches the active runtime. No install, shortcut or real save is altered.
+
+This is a **world-only scene prototype**: HUD, screen-space composites, town shadows, water
+surfaces/refraction and depth-of-field are omitted. Loading, cuts, first-person, menus, talk,
+events, fishing, Georama and other maps submit no game layer. The PC status panel identifies
+loading/unsupported views; exit and restart if you leave the supported walking scene. Quest
+controllers have no game action bindings yet; use the keyboard or an ordinary gamepad.
+
+The first render is 960×720 per eye, blitted to the runtime's recommended swapchain size.
+Native-resolution performance is not qualified. The PC operator mirror updates at **2 Hz** and
+is not the headset refresh rate. The initial scale is **provisional 10 game units/metre**; change
+it with `test-dcvr.ps1 -Mode Norune -UnitsPerMetre 15` for a separate comparison run. IPD is always
+the runtime's eye separation. The game rig's pitch, following, easing and collision recovery
+remain visible to the viewer; head lean can penetrate walls because head collision is unfinished.
+Billboards, view-dependent lighting and world markers are not fully qualified for independent eyes.
+
+For another checkout, supply `-BuildDirectory`, owned `-DataDirectory` and a candidate
+`-SeedSave` folder. `-Mode Synthetic -Frames 300 -InputScript FILE` exercises the same game
+camera/display seam without any OpenXR calls, recording three synthetic stereo display frames
+per canonical tick and neutral/turned/leaning final eye PNGs in a fresh `capture` directory.
 
 ## First-time Quest 2 setup on Windows
 
@@ -63,7 +110,7 @@ SteamVR is not required for the initial Meta route.
    [Meta's setup page](https://www.meta.com/help/quest/509273027107091/), then sign in yourself.
    Accept Windows elevation prompts locally if setup requests them. Do not send credentials to an agent.
 2. Dylan chose **Air Link**. Connect the headset to a suitable 5 GHz Wi-Fi network, ideally with the PC
-   on Ethernet to the same router. Enable Air Link inside the headset, select this PC, and Pair.
+   on Ethernet to the same router. Open Link and Use Air Link inside the headset, select this PC, and Pair.
    Compare the code shown in the headset with the PC app, confirm, then Launch.
 3. Establish a stable Link home/dashboard before testing DCVR. In the PC app's Settings → General,
    inspect OpenXR Runtime. If Meta is not active, select **Set Meta Horizon Link as active** for
@@ -126,6 +173,16 @@ each live eye to its own acquired swapchain image before drawing the next. GPU w
 serialize this prototype. There is no temporal feedback, water or shared shadow target in this room;
 this does not solve those effects or establish headset frame-time performance.
 
+Reproduce the moving third-person game diagnostic with the tracked input sequence:
+
+```powershell
+pwsh -NoProfile -File tools/windows/test-dcvr.ps1 -Mode Synthetic -Frames 300 `
+  -InputScript "$PWD/tools/dcvr/norune-walk.input"
+```
+
+Its default paths use this PC's existing owned data and isolated `save-baseline` seed. Supply
+`-DataDirectory` and `-SeedSave` elsewhere. Omitting the input file selects a tracked neutral script.
+
 For a bounded Norune capture, first copy a save folder to an isolated test directory. Never use
 the active play save. Use owned extracted PAL data read-only, e.g.:
 
@@ -143,28 +200,19 @@ Synthetic captures can also use `--input` as described in [PC.md](PC.md). The ex
 
 ## Remaining integration gates
 
-1. Run the calibration tool on a real Quest/Air Link session with Dylan and qualify runtime
-   negotiation, image orientation, stereo, positional/rotational tracking, recentering and exit.
-2. Connect the implemented runtime/session backend to a bounded Norune/dungeon game mode.
-   Keep simulation on Chronicle's fixed tick clock, rather than tying gameplay speed to headset
-   refresh. Canonical game side effects must remain once per logic tick; display replays acquire
-   late poses. The calibration tool does not run the game clock or alter gameplay timing.
-3. Make eye color/depth, shared-depth shadows, frame grabs, water and temporal feedback independent.
-   Game captures reuse the display target sequentially and reject frames needing a canonical
-   base. Separate calibration swapchains are not a complete per-eye game history solution.
-4. Expand or replace CPU culling before recording. A wider FOV or late head turn cannot recover
-   discarded geometry. Capture camera 0 is a developer assumption, not reliable world-camera
-   classification across menus, reflections and every game mode.
-5. Integrate the third-person follow/orbit camera with an independent local head pose. Qualify
-   follow translation, camera input, zoom, wall recovery and camera-mode transitions; smoothing
-   the game rig must not delay head tracking. Calibrate scale/recentering and handle head offsets
-   through walls. Place HUD/menus at an explicit readable depth. Screen-space markers without
-   depth are still unmoved. Dungeon lock-on camera behavior is also required before claiming a
-   playable dungeon slice. First-person states need their own transitions, not forced replacement
-   of normal third-person play.
-6. Validate one bounded room/floor in the Quest with Dylan: eye orientation, stereo depth, lean,
-   turn, conventional movement, menus, loss of tracking and exit. Loading, fishing, Georama and
-   the rest of the game remain outside that first playable slice.
+1. Qualify a real Quest/Air Link session with Dylan: Vulkan negotiation, image orientation,
+   stereo, tracking, recenter, focus/tracking loss and exit. Software receipts are separate.
+2. Test third-person Norune while following Toan, orbiting/zooming and recovering at walls.
+   Choose the rig's pitch/rotation/easing policy and game scale from actual headset feedback.
+   Existing desktop camera/collision tests do not qualify headset comfort.
+3. Measure frame times and deadline overruns, then optimize the serial eye transfers and small
+   source resolution. Keep canonical game effects once per logic tick at the fixed 60 Hz cadence.
+4. Give water, shadows, grabs and temporal feedback independent eye targets/history before
+   enabling them. The bounded world-only prototype currently excludes these passes.
+5. Implement readable HUD and Quest action bindings. Handle physical head/wall overlap, world
+   sprites/markers and view-dependent lighting/billboards explicitly.
+6. Extend world-camera selection/culling and transitions for dungeons, lock-on, first-person,
+   loading/cuts, menus, talk/events, fishing and Georama. Those modes are not offered by this slice.
 
 Relevant specification entries:
 [Vulkan enable2](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_vulkan_enable2.html),
@@ -173,68 +221,39 @@ Relevant specification entries:
 [frame timing](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrWaitFrame.html),
 [frame submission](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrEndFrame.html).
 
-## Recommended next implementation
+## Current bridge and next qualification
 
-The next software checkpoint should connect **one bounded Norune scene in its normal third-person
-mode** to the headset backend. An initially stationary third-person view can qualify the bridge,
-but following a moving character and controlling the camera are required before calling the slice
-playable. This corrects the earlier first-person emphasis: Dylan explicitly placed the third-person
-camera on the critical path. The following rig/head policy is a proposed starting implementation,
-not an implemented `--vr` mode or a comfort-qualified design.
+The third-person Norune bridge now implements the former next-software plan. Startup negotiates
+Vulkan through OpenXR before renderer creation; session/swapchains close before renderer teardown.
+Only `xrWaitFrame` runs on a worker. There is at most one outstanding wait; game-thread presentation
+polls it without blocking on headset pacing. Pose location, game recording and all Vulkan work remain
+on the game thread. STOPPING and destruction join that wait before ending/destroying the session.
+Rendering and image/GPU waits can still overrun a logic deadline; this prototype does not promise
+that all graphics work fits inside a 60 Hz tick. Runtime-driven timing needs headset measurements.
 
-1. **Connect startup and lifetime.** Add an explicit opt-in game VR path. The runtime must
-   initialize before `RendererInit` in `port/src/main.cpp`, supply its mandatory Vulkan device
-   through the existing provider, and create the session from that device. Destroy the XR session
-   and swapchains before the renderer. Keep desktop startup and OpenXR-disabled builds working.
-2. **Bridge timing and scene presentation.** `GameRenderTick` already retains the newest and
-   previous lists after one canonical render; `GamePresentBetweenTicks` is the existing display
-   seam. Feed those lists to the session with predicted eye poses/FOV and deliberate interpolation.
-   Do not call the game once per eye or change its configured tick rate to match headset refresh.
-   `FrameLoop::Frame` currently waits synchronously, while the game wait hook has a next-tick
-   deadline. A direct blocking insertion needs timing evidence; it is not a complete scheduling
-   design. Keep Vulkan calls on their owning thread. If a separate XR wait stage is needed,
-   exchange timing only and synchronize it explicitly, as the OpenXR frame specification requires.
-3. **Separate the third-person rig from head tracking.** Start with the game's follow camera as
-   the external observer's base position and orientation, with Toan remaining visible and controlled
-   by conventional movement. Compose the recentered head/eye pose after the interpolated base view,
-   as the existing stereo override permits. Head movement must not inject mouse/right-stick input,
-   orbit the rig around Toan or turn the character. Manual orbit/zoom and recenter are separate
-   controls. Game-rig easing can be evaluated independently; tracked head movement must stay direct.
-   Runtime FOV replaces the desktop projection, so qualify camera distance/framing as well as
-   world scale. The wider synthetic FOV currently makes Toan smaller in the frame. Eye separation
-   must follow the runtime; increasing IPD to compensate is not a substitute for framing/scale.
-   Audit automatic rotations, wall recovery, zoom changes, lock-on and talk/event camera changes.
-   Changes to rig orientation move the viewer too, so unchanged desktop follow behavior alone is
-   not a sufficient headset design. Define explicit transition handling and test it with Dylan.
-4. **Record enough geometry and identify the world camera.** Replace the capture's camera-0
-   assumption with an explicit supported-mode camera choice. Norune calls `EditAreaClip` before
-   recording, and that function rejects areas through `MGClipBox`; dungeon parts/NPCs are also
-   discarded using the original camera. Use conservative coverage for the bounded scene, including
-   head turns and lean, before eye replay. A wider projection after recording cannot fix omissions.
-5. **Qualify the selected scene's effects.** Eye swapchain images are separate already, but game
-   display targets and grab twins are shared. Audit clear/base requirements, shared-depth shadows,
-   water/refraction and previous-frame feedback before accepting a frame. Isolate effects that
-   retain eye-dependent contents, or explicitly exclude them from this diagnostic slice. Reusing
-   the calibration path alone does not establish independent game eye history. Measure the current
-   serial GPU waits at runtime eye sizes before optimizing or claiming a headset frame rate.
-6. **Validate the bridge without depending on a Quest.** Inject XR pacing at different display
-   rates and with delayed waits; verify gameplay/canonical counts are independent of eye/frame
-   count, and uploads/depth queries still happen once. Exercise focus/tracking loss, loading/cuts,
-   recenter/reference changes, unsupported frames and exit. Exercise a moving third-person base
-   camera with independent head turns/lean, manual orbit/zoom and wall recovery. Verify that head
-   pose does not alter avatar or camera-control input, and cover camera selection/transitions.
-   Use real Vulkan eye transfers, verify eye independence and canonical preservation, and retain
-   the copied-save desktop comparison. A stationary or first-person-only pass cannot qualify the
-   third-person playable milestone.
+The existing game remains at 60 Hz. Each tick records/renders canonically once; the host receives
+its newest/previous display lists for interpolation. Predicted eye/head pose is sampled after the
+wait completes and applied directly after the game camera. Separate runtime eye images receive
+serial display renders. No game update, canonical upload or canonical depth query runs per eye.
+The explicit Norune world-camera tag replaces the synthetic screenshot tool's camera-0 assumption.
 
-The hardware lane can proceed independently: once Dylan's Quest is charged, pair and launch
-Air Link, then qualify `dcvr_room` before testing the game bridge. Record actual headset feedback
-separately from submission receipts. After the stationary third-person game view works, qualify
-following Toan during conventional movement, orbit/zoom and wall recovery, calibrate game units/metre,
-and handle head/wall overlap and readable HUD placement. Preserve existing game collision and
-movement semantics. Quest thumbsticks/buttons need
-OpenXR action bindings; the existing SDL controller glyph additions do not provide those bindings.
-Physical swings, hands, broad mode coverage and a combat redesign remain later scope.
+The normal Norune walking gate bypasses desktop-frustum clipping in `MGClipVertex` and frame
+hierarchy drawing, and expands the ground's four area flags/clip plane before recording. Other
+modes and normal desktop play retain their culling. Eye replay requires a cleared, independent
+canonical frame; loading, cuts, feedback/base-dependent frames and unsupported cameras produce
+zero game layers. Eye-dependent water, shadows and screen-space effects are excluded. Shared game
+history is therefore not being offered as support for those effects. Focus loss suppresses pad,
+mouse look/zoom, keyboard movement and menu input without destroying device overrides; accumulated
+mouse motion is dropped when focus returns.
+
+Remaining qualification starts with Dylan's actual Air Link session, the calibration room, then
+stationary and moving third-person Norune. Assess the game rig's automatic rotations, pitch,
+follow easing, orbit/zoom, wall recovery, framing and scale before choosing a comfort policy.
+Constrain physical head/wall overlap and place readable HUD later. Implement action bindings for
+Quest thumbsticks/buttons after the first rendered session works. Isolate eye targets/history
+before restoring water/shadows/feedback; replace the current serial GPU waits and small eye source
+only after measuring them. Dungeon culling, lock-on, camera cuts and other game modes remain
+explicit later work. Physical swings, hands and a combat redesign remain later scope.
 
 ## Development checkpoint — 2026-10-08
 
@@ -306,3 +325,35 @@ PNGs are different. The wider synthetic projection changes character framing, re
 need to qualify third-person camera distance and scale. This is stationary synthetic evidence,
 not live tracking, follow/orbit qualification or headset validation. No renderer/gameplay code
 changed for this correction. Receipts are `build/validation/norune-third-person*`.
+
+The third implementation checkpoint adds `dcvr_game`, its presentation hook, nonblocking XR wait
+stage, explicit Norune world-camera recording and bounded conservative culling. The normal follow
+camera and conventional controls remain; recentered head/eye poses compose at display time.
+Clears/cuts/base images and previous-frame feedback are gated, unsupported modes submit zero game
+layers, and eye-dependent water/shadows/DOF plus screen-space UI/composites are excluded. Focus
+loss suppresses all gameplay input channels and drops accumulated mouse movement. Normal desktop
+builds do not link OpenXR.
+
+Both Windows builds succeeded. **319 OpenXR-enabled tests and 297 disabled-build tests passed**,
+with no skips. New cases cover delayed asynchronous waits and one outstanding frame, STOPPING
+join order, unsupported empty frames, world-camera tagging, world-only replay/canonical HUD,
+fixed canonical counts at simulated 72/90/120 Hz, focus gating, bounded Norune mode/culling and
+rejection of unsafe feedback. These use injected XR calls and real Vulkan; they are not a live session.
+
+The final copied-save movement run used `tools/dcvr/norune-walk.input`: 300 canonical/game ticks,
+885 synthetic display frames and 1,776 eye renders including six final captures. Toan walked
+159.9998 game units; the base camera changed 179 times. Neutral synthetic head motion left Toan
+stationary. Repeating movement at 10 and 15 game units/metre produced identical avatar positions.
+Final neutral/side/back eye images were inspected with Toan in third person and geometry beyond
+the original camera visible. Left/right images differ. The ordinary desktop regression PNG still
+matches SHA-256 `17DD3AEC6DDE882044F42D066240B39A32B3F1FDF1F60A09E5D6B4F98BB9FB15` exactly.
+Existing capture directories were refused without changing their metadata, invalid scale was
+refused, and unavailable-headset startup returned exit 1 with a structured failure receipt.
+
+Receipts include `build/validation/game-all-tests-final.log`, `game-desktop-tests-final.log`,
+`vr-game-desktop-regression*`, `vr-game-unavailable.log`, and fresh runs under
+`build/dcvr/vr-tests/`. The launchers were exercised in synthetic mode and with an unavailable
+headset. The latest live probe still finds Oculus 1.208.0 but reports
+`XR_ERROR_FORM_FACTOR_UNAVAILABLE` before device/session creation. Air Link pairing, actual stereo,
+tracking, camera comfort, world scale and headset performance remain for Dylan to test. No real
+save, play installation, shortcut, active-runtime registration or matching `ps2/` source changed.

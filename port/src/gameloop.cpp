@@ -20,6 +20,8 @@
 #include "dngstatusdata.hpp"
 #include "dun/gameloop.hpp"
 #include "editloop.hpp"
+#include "edit.hpp"
+#include "editmapscript.hpp"
 #include "exitcodes.hpp"
 #include "gamemode.hpp"
 #include "gamepad.hpp"
@@ -54,6 +56,8 @@ extern s32 gameTask;
 extern int viewMode;
 extern s32 mc_mode;
 extern s32 NextMapNo;
+extern s32 MapNo;
+extern s32 GameMode;
 
 namespace {
 
@@ -73,6 +77,8 @@ constexpr int kWarmUpTicks = 60;
 constexpr sceGsTexa kDrawEnvTexa = {0x80, 0, 1, 0, 0x80, 0};
 
 GamePresentSettings g_present;
+GamePresentHook g_present_hook = nullptr;
+bool g_vr_enabled = false;
 gfx::DisplayListRef g_list;
 gfx::DisplayListRef g_previous_list;
 bool                g_tick_shown = true;
@@ -735,6 +741,13 @@ void GameSetPresentSettings(const GamePresentSettings &settings) {
     g_fps.on = settings.show_fps;
 }
 
+void GameSetPresentHook(GamePresentHook hook) { g_present_hook = hook; }
+void GameSetVrEnabled(bool enabled) { g_vr_enabled = enabled; }
+bool GameVrScene() {
+    return g_vr_enabled && mode == GAME_MODE_EDIT && MapNo == 0 && GameMode == ED_MODE_WALK &&
+           EdCheckViewMode() == 0;
+}
+
 void GameRenderTick(gfx::DisplayListRef list) {
     PresentClock::time_point start = PresentClock::now();
     gfx::RenderList(*list, 1.0f, {.canonical = true});
@@ -756,6 +769,10 @@ void GameRenderTick(gfx::DisplayListRef list) {
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick) {
     if (!g_list) {
         return false;
+    }
+    if (g_present_hook) {
+        g_tick_shown = true;
+        return g_present_hook(*g_list, g_previous_list.get(), static_cast<float>(fraction), true, next_tick);
     }
     PollFpsToggle();
     if (!g_present.interpolation) {
@@ -787,6 +804,11 @@ bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_po
 }
 
 void GamePresentTickEnd() {
+    if (g_present_hook && g_list) {
+        g_present_hook(*g_list, g_previous_list.get(), 1, false, PresentClock::now());
+        g_tick_shown = true;
+        return;
+    }
     if (g_tick_shown || !g_list) {
         return;
     }

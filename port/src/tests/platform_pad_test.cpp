@@ -594,6 +594,30 @@ TEST(PlatformPad, ActionsListAndBindingLabel) {
     ASSERT_EQ(InputBindingLabel("triangle"), "Tab");
 }
 
+TEST(PlatformPad, HostPauseSuppressesGameplayAndRestoresAnExistingOverride) {
+    InputResetBindings();
+    SetPad(0, kInputCross, 255, 128, 0, 128);
+    InputKeyboardMouse scripted;
+    scripted.keys = {SDL_SCANCODE_W};
+    scripted.mouse_dx = 12;
+    InputSetScriptedDevices(scripted);
+    InputLatchPad(0);
+    ASSERT_NE(InputGetMouseLook().yaw, 0);
+    InputSetHostPaused(true);
+    EXPECT_TRUE(InputGetPad(0).connected);
+    EXPECT_EQ(InputGetPad(0).buttons, 0);
+    EXPECT_EQ(InputGetPad(0).left_x, 128);
+    EXPECT_EQ(InputGetPad(0).right_x, 128);
+    EXPECT_EQ(InputGetMouseLook().yaw, 0);
+    EXPECT_EQ(InputGetKeyboardMovement().y, 0);
+    InputSetHostPaused(false);
+    EXPECT_EQ(InputGetPad(0).buttons, kInputCross);
+    EXPECT_EQ(InputGetPad(0).left_x, 255);
+    EXPECT_EQ(InputGetMouseLook().yaw, 0); // No accumulated jump when focus comes back.
+    InputSetScriptedDevices({});
+    InputSetOverride(0, nullptr);
+}
+
 // A capture reports the first source that goes down, then not again until it is let go.
 TEST(PlatformPad, BindCaptureReportsTheFirstNewSource) {
     InputResetBindings();

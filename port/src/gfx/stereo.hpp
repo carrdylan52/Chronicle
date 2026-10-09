@@ -21,6 +21,10 @@ struct StereoPose {
 bool MakeStereoView(const StereoPose &pose, const StereoFov &fov, float units_per_metre,
                     float near_z, float far_z, uint32_t camera, ViewOverride &out);
 
+// The bounded world-only bridge cannot use canonical/previous-eye feedback as stereo history.
+// Requires an explicit world camera, world draws and an independently cleared, uncut frame.
+bool StereoWorldReplaySafe(const DisplayList &list);
+
 // Development capture only: two sequential display replays of the latest canonical list.
 // Does not advance simulation. Uses the first recorded camera, fixed 64 mm IPD, provisional
 // 10 game units/metre and a symmetric 90-degree FOV. Requires an offscreen renderer and a

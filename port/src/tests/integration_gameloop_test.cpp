@@ -7,6 +7,8 @@
 #include "dataset.hpp"
 #include "ebattle.hpp"
 #include "editpartsdata.hpp"
+#include "editmapscript.hpp"
+#include "mglib.hpp"
 #include "gameloop.hpp"
 #include "gamemode.hpp"
 #include "gameutil.hpp"
@@ -17,6 +19,8 @@
 extern s32 mode;
 extern s32 mc_mode;
 extern s32 NextMapNo;
+extern int GameMode;
+extern int viewMode;
 
 namespace {
 
@@ -157,4 +161,31 @@ TEST(IntegrationGameloop, GiveListParses) {
     ASSERT_TRUE(!GameSetGive("sun"));
     ASSERT_TRUE(!GameSetGive("0"));
     ASSERT_TRUE(!GameSetGive("9999"));
+}
+
+TEST(IntegrationGameloop, VrCullingIsRestrictedToNormalNoruneThirdPerson) {
+    mode = GAME_MODE_EDIT;
+    MapNo = 0;
+    GameMode = ED_MODE_WALK;
+    viewMode = 0;
+    GameSetVrEnabled(false);
+    EXPECT_FALSE(GameVrScene());
+    GameSetVrEnabled(true);
+    EXPECT_TRUE(GameVrScene());
+    float behind[4] = {0, 0, -100, 1};
+    EXPECT_EQ(MGClipVertex(behind), 0);
+    for (int other : {ED_MODE_GEORAMA, ED_MODE_TALK, ED_MODE_EVENT, ED_MODE_FISHING}) {
+        GameMode = other;
+        EXPECT_FALSE(GameVrScene());
+    }
+    GameMode = ED_MODE_WALK;
+    MapNo = 1;
+    EXPECT_FALSE(GameVrScene());
+    MapNo = 0;
+    viewMode = 1;
+    EXPECT_FALSE(GameVrScene());
+    viewMode = 0;
+    mode = GAME_MODE_DUNGEON;
+    EXPECT_FALSE(GameVrScene());
+    GameSetVrEnabled(false);
 }

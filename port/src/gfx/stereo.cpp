@@ -10,6 +10,27 @@
 
 namespace gfx {
 
+bool StereoWorldReplaySafe(const DisplayList &list) {
+    if (list.world_camera < 0 || uint32_t(list.world_camera) >= list.cameras.size() ||
+        !list.main_cleared || list.needs_base || list.cut || list.camera_cut) {
+        return false;
+    }
+    bool world = std::any_of(list.records.begin(), list.records.end(), [&](const auto &record) {
+        return record.has_transform && record.camera == uint32_t(list.world_camera);
+    });
+    if (!world) return false;
+    for (const auto &entry : list.entries) {
+        if (const auto *copy = std::get_if<detail::CopyEntry>(&entry)) {
+            if (copy->src == kPreviousFrame) return false;
+        } else if (const auto *draw = std::get_if<detail::MeshEntry>(&entry)) {
+            if (draw->binding.texture == kPreviousFrame) return false;
+        } else if (const auto *sprite = std::get_if<detail::Draw2DEntry>(&entry)) {
+            if (sprite->binding.texture == kPreviousFrame) return false;
+        }
+    }
+    return true;
+}
+
 bool MakeStereoView(const StereoPose &pose, const StereoFov &fov, float units_per_metre,
                     float near_z, float far_z, uint32_t camera, ViewOverride &out) {
     constexpr float half_pi = std::numbers::pi_v<float> / 2;

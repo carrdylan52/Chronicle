@@ -180,6 +180,7 @@ float                                                    g_mouse_dx = 0.0f;
 float                                                    g_mouse_dy = 0.0f;
 InputMouseLook                                           g_mouse_look;
 bool                                                     g_mouse_zoom = false;
+bool                                                     g_host_paused = false;
 float                                                    g_scripted_wheel = 0.0f;
 std::int64_t                                             g_last_latch_tick = -1;
 std::int64_t                                             g_latch_serial = 0;
@@ -729,6 +730,7 @@ void InputApplyConfig(const Config &config) {
 }
 
 void InputShutdown() {
+    InputSetHostPaused(false);
     InputSetMovementLocked(false);
     MouseStop();
     g_menu_mouse = false;
@@ -975,10 +977,25 @@ InputMenuMouse InputTakeMenuMouse() {
     }
     g_menu_dx = 0.0f;
     g_menu_dy = 0.0f;
-    return mouse;
+    return g_host_paused ? InputMenuMouse{} : mouse;
 }
 
-const InputMouseLook &InputGetMouseLook() { return g_mouse_look; }
+const InputMouseLook &InputGetMouseLook() {
+    static const InputMouseLook neutral;
+    return g_host_paused ? neutral : g_mouse_look;
+}
+
+void InputSetHostPaused(bool paused) {
+    if (g_host_paused == paused) return;
+    g_host_paused = paused;
+    float dx, dy;
+    MouseTakeMotion(dx, dy);
+    MouseTakeWheel();
+    g_mouse_dx = g_mouse_dy = 0;
+    g_mouse_look.yaw = g_mouse_look.pitch = g_mouse_look.zoom = 0;
+    g_mouse_look.zoom_reset = false;
+    g_scripted_wheel = 0;
+}
 
 void InputNoteLeftStickRead() { g_stick_read_serial = g_latch_serial; }
 
@@ -990,6 +1007,12 @@ const InputPadState &InputGetPad(int pad) {
         return kAbsent;
     }
     g_view[pad] = g_override[pad] ? *g_override[pad] : g_state[pad];
+    if (g_host_paused) {
+        const bool connected = g_view[pad].connected;
+        g_view[pad] = {};
+        g_view[pad].connected = connected;
+        return g_view[pad];
+    }
     if (!g_stick_live) {
         g_view[pad].buttons |= g_view[pad].stick_dpad;
     }
@@ -1334,6 +1357,7 @@ int InputScancodeFromName(std::string_view name) {
 }
 
 bool InputHostHeld(InputHostAction action) {
+    if (g_host_paused) return false;
     EnsureBindings();
     std::size_t host = static_cast<std::size_t>(action);
     for (const Source &source : g_bindings[kFirstHostAction + host]) {
@@ -1350,6 +1374,7 @@ void InputSetLookOnLeftStick(bool left) {
 
 bool InputHostPressed(InputHostAction action) {
     int &presses = g_host_presses[static_cast<std::size_t>(action)];
+    if (g_host_paused) { presses = 0; return false; }
     if (presses == 0) {
         return false;
     }
@@ -1370,7 +1395,7 @@ void InputSetMovementLocked(bool locked) { g_movement_locked = locked; }
 
 InputKeyboardMovement InputGetKeyboardMovement() {
     EnsureBindings();
-    if (g_menu_mouse || g_movement_locked) {
+    if (g_menu_mouse || g_movement_locked || g_host_paused) {
         return {};
     }
     InputKeyboardMouse held = g_override[0] ? g_scripted : LiveKeyboardMouse();

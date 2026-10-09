@@ -9,6 +9,19 @@ FrameLoop::FrameLoop(XrInstance instance, XrSession session, XrSpace local, XrSp
                      const std::array<EyeSwapchain, 2> &eyes, FrameApi api)
     : instance_(instance), session_(session), local_(local), head_(head), eyes_(eyes), api_(api) {}
 
+FrameLoop::~FrameLoop() { DrainWait(); }
+
+void FrameLoop::DrainWait() noexcept {
+    if (pending_wait_.valid()) {
+        try { pending_wait_.get(); } catch (...) {}
+    }
+}
+
+void FrameLoop::AsyncWait(bool enabled) {
+    DrainWait();
+    async_wait_ = enabled;
+}
+
 void FrameLoop::Observe(XrResult result, const char *call) {
     if (XR_FAILED(result) || result == XR_SESSION_LOSS_PENDING) {
         exiting_ = true;
@@ -50,6 +63,7 @@ void FrameLoop::Poll() {
                 Observe(api_.begin_session(session_, &begin), "begin_session");
                 running_ = true;
             } else if (state_ == XR_SESSION_STATE_STOPPING && running_) {
+                DrainWait(); // No frame API may still be running when the session ends.
                 Observe(api_.end_session(session_), "end_session");
                 running_ = false;
                 if (exit_requested_) {
@@ -82,7 +96,7 @@ void FrameLoop::RequestExit() {
     }
 }
 
-FrameResult FrameLoop::Frame(const RenderEye &render, const FinishGpu &finish) {
+FrameResult FrameLoop::Frame(const RenderEye &render, const FinishGpu &finish, bool render_enabled) {
     if (exiting_) {
         return FrameResult::Exit;
     }
@@ -90,8 +104,28 @@ FrameResult FrameLoop::Frame(const RenderEye &render, const FinishGpu &finish) {
         return FrameResult::Idle;
     }
     XrFrameState    state{XR_TYPE_FRAME_STATE};
-    XrFrameWaitInfo wait{XR_TYPE_FRAME_WAIT_INFO};
-    Observe(api_.wait_frame(session_, &wait, &state), "wait_frame");
+    if (async_wait_) {
+        if (!pending_wait_.valid()) {
+            auto wait_frame = api_.wait_frame;
+            auto session = session_;
+            pending_wait_ = std::async(std::launch::async, [wait_frame, session] {
+                XrFrameWaitInfo wait{XR_TYPE_FRAME_WAIT_INFO};
+                WaitResult result{XR_SUCCESS, {XR_TYPE_FRAME_STATE}};
+                result.result = wait_frame(session, &wait, &result.state);
+                return result;
+            });
+            return FrameResult::Idle;
+        }
+        if (pending_wait_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            return FrameResult::Idle;
+        }
+        auto result = pending_wait_.get();
+        Observe(result.result, "wait_frame");
+        state = result.state;
+    } else {
+        XrFrameWaitInfo wait{XR_TYPE_FRAME_WAIT_INFO};
+        Observe(api_.wait_frame(session_, &wait, &state), "wait_frame");
+    }
     XrFrameBeginInfo begin{XR_TYPE_FRAME_BEGIN_INFO};
     XrResult         begun = api_.begin_frame(session_, &begin);
     Observe(begun, "begin_frame");
@@ -108,7 +142,7 @@ FrameResult FrameLoop::Frame(const RenderEye &render, const FinishGpu &finish) {
         Observe(api_.end_frame(session_, &info), "end_frame");
     };
     try {
-        if (!state.shouldRender || exiting_ || begun == XR_FRAME_DISCARDED || exit_requested_) {
+        if (!render_enabled || !state.shouldRender || exiting_ || begun == XR_FRAME_DISCARDED || exit_requested_) {
             end(nullptr);
             return FrameResult::Empty;
         }

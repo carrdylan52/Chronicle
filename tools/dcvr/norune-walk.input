@@ -1,0 +1,12 @@
+# Bounded third-person keyboard movement, mouse orbit and wheel zoom; no first-person toggle.
+# Use test-dcvr.ps1 -Mode Synthetic -Frames 300 -InputScript tools/dcvr/norune-walk.input
+0
+120 key:S
+160 key:D
+190
+200 mouse:12,0
+220
+230 wheel:-1
+231
+250 key:A
+280
