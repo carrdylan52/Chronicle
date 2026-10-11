@@ -730,10 +730,9 @@ inline Summary Extract(const Archive &archive, const fs::path &out, std::FILE *l
     all.insert(all.end(), index.begin(), index.end());
     CheckEntries(all, out);
 
-    Manifest previous = ReadManifest(out);
     Manifest next;
-    Result   result = ExtractEntries(files, out, previous, next, progress);
-    ExtractEntries(index, out, previous, next);
+    Result   result = ExtractEntries(files, out, next, progress);
+    ExtractEntries(index, out, next);
     WriteManifest(out, next);
     summary.written = result.written;
     summary.kept = result.kept;

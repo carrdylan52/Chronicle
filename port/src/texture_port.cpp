@@ -124,9 +124,13 @@ uint32_t Load32(const u_char *p) {
     return value;
 }
 
+// The game's buffer holds the level its picture header describes.
 void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bool swizzled,
                  std::vector<uint8_t> &out) {
-    kzdata::tim2::DecodeLevel(static_cast<kzdata::tim2::Format>(bpp), width, height, src, swizzled, out);
+    auto format = static_cast<kzdata::tim2::Format>(bpp);
+    kzdata::tim2::DecodeLevel(format, width, height,
+                              {src, static_cast<size_t>(kzdata::tim2::SourceBytes(format, width, height, swizzled))},
+                              swizzled, out);
     if (bpp == 2 || bpp == 4) {
         gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), static_cast<size_t>(width) * height);
     }
@@ -181,7 +185,12 @@ bool ResolveSide(unsigned tbp, unsigned psm, Side &side) {
 } // namespace
 
 void PortUnswizzle8(int width, int height, const u_char *swizzled, u_char *linear) {
-    kzdata::tim2::Unswizzle8(width, height, swizzled, linear);
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+    size_t texels = static_cast<size_t>(width) * height;
+    kzdata::tim2::Unswizzle8(width, height, {swizzled, static_cast<size_t>(kzdata::tim2::SwizzledBytes(width, height))},
+                             {linear, texels});
 }
 
 bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *levels, int level_count,
