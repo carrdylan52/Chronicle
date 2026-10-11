@@ -476,6 +476,8 @@ void FirstRunIfNoData(bool headless) {
     SDL_SetWindowTitle(WindowHandle(), "Game data needed");
 
     gfx::RendererConfig renderer;
+    renderer.logical_width = static_cast<uint32_t>(kLogicalWidth);
+    renderer.logical_height = static_cast<uint32_t>(kLogicalHeight);
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
     renderer.offscreen = offscreen;
     gfx::RendererInit(WindowHandle(), renderer);

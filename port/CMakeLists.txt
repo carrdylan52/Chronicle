@@ -38,6 +38,8 @@ FetchContent_Declare(nlohmann_json
     URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
     FIND_PACKAGE_ARGS CONFIG)
 FetchContent_MakeAvailable(nlohmann_json)
+# The renderer, shared with the other games: tools/kazarov/port.
+include(${KZ_ROOT}/cmake/KazarovPort.cmake)
 
 # The soundtrack decoders are Flatpak sources there, since its build sandbox has no network.
 # Other builds fetch the same pinned files at configure time.
@@ -177,39 +179,19 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
 
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
 list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
-# The host side (platform, gfx, audio) never sees a game header, so it is built
+# The host side (platform, audio and Kazarov's gfx) never sees a game header, so it is built
 # without dc_options: no port.h ahead of each unit and no game include paths.
 set(HOST_SOURCES ${PORT_LIB_SOURCES})
-list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/(platform|gfx|audio)/")
-list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/(platform|gfx|audio)/")
-
-# Every shaders/*.vert|frag under port/src/gfx becomes a header holding its
-# SPIR-V words as a const uint32_t array named after the file (draw.frag ->
-# draw_frag), in ${SHADER_HEADER_DIR}/shaders/<file>.spv.hpp.
-find_program(GLSLANG_VALIDATOR NAMES glslangValidator REQUIRED)
-set(SHADER_DIR ${PORT_DIR}/gfx/shaders)
-set(SHADER_HEADER_DIR ${CMAKE_BINARY_DIR}/generated)
-file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS ${SHADER_DIR}/*.vert ${SHADER_DIR}/*.frag)
-set(SHADER_HEADERS "")
-foreach(shader IN LISTS SHADER_SOURCES)
-    get_filename_component(shader_name ${shader} NAME)
-    string(REPLACE "." "_" shader_symbol ${shader_name})
-    set(header ${SHADER_HEADER_DIR}/shaders/${shader_name}.spv.hpp)
-    add_custom_command(OUTPUT ${header}
-        COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.4 --quiet --vn ${shader_symbol}
-            --depfile ${header}.d -o ${header} ${shader}
-        DEPENDS ${shader}
-        DEPFILE ${header}.d
-        COMMENT "Compiling ${shader_name} to SPIR-V")
-    list(APPEND SHADER_HEADERS ${header})
-endforeach()
+list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/(platform|audio)/")
+list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/(platform|audio)/")
+set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
 
 # port/icon/chronicle-128.rgba, the window icon's raw 128x128 RGBA pixels, as a byte array.
 set(ICON_RGBA ${CMAKE_SOURCE_DIR}/port/icon/chronicle-128.rgba)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ICON_RGBA})
 file(READ ${ICON_RGBA} icon_hex HEX)
 string(REGEX REPLACE "(..)" "0x\\1," icon_bytes "${icon_hex}")
-file(CONFIGURE OUTPUT ${SHADER_HEADER_DIR}/icon/chronicle.hpp
+file(CONFIGURE OUTPUT ${GENERATED_DIR}/icon/chronicle.hpp
     CONTENT "#pragma once\n#include <cstdint>\ninline constexpr int kIconSize = 128;\ninline constexpr std::uint8_t kIconRgba[] = {${icon_bytes}};\n")
 
 # CREDITS, one contributor a line and # for comments, as the About page's list of names.
@@ -229,18 +211,17 @@ endforeach()
 if(credit_names STREQUAL "")
     set(credit_names "\"\"")
 endif()
-file(CONFIGURE OUTPUT ${SHADER_HEADER_DIR}/options/credits.hpp
+file(CONFIGURE OUTPUT ${GENERATED_DIR}/options/credits.hpp
     CONTENT "#pragma once\ninline constexpr const char *kCredits[] = {${credit_names}};\n")
 
-add_library(dc_host OBJECT ${HOST_SOURCES} ${SHADER_HEADERS})
-target_include_directories(dc_host PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
-target_link_libraries(dc_host PRIVATE SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
-target_compile_options(dc_host PRIVATE -Wall -ffunction-sections -fdata-sections)
+kz_port_library(dc_host APP_NAME "Dark Cloud" APP_ID chronicle ENV_PREFIX DC_)
+target_sources(dc_host PRIVATE ${HOST_SOURCES})
+target_include_directories(dc_host PRIVATE ${PORT_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
 
 add_library(dc_port OBJECT ${PORT_LIB_SOURCES})
 target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
 # Replacement units reach the host side as "gfx/gfx.hpp", "platform/window.hpp".
-target_include_directories(dc_port PRIVATE ${PORT_DIR} ${SHADER_HEADER_DIR})
+target_include_directories(dc_port PRIVATE ${PORT_DIR} ${KZ_ROOT}/port ${GENERATED_DIR})
 # The game's headers trip a few warnings that only describe how MWCC's source
 # was written, not a problem in the port.
 target_compile_options(dc_port PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
@@ -271,7 +252,7 @@ endif()
 function(dc_link_game target)
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_host> $<TARGET_OBJECTS:dc_ps2>)
     target_link_libraries(${target} PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan)
-    target_include_directories(${target} PRIVATE ${PORT_DIR})
+    target_include_directories(${target} PRIVATE ${PORT_DIR} ${KZ_ROOT}/port)
     target_compile_options(${target} PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
         -Wno-overloaded-virtual -Wno-unused-function)
     target_link_options(${target} PRIVATE ${DC_LINK_OPTIONS})

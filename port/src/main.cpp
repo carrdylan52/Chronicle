@@ -18,6 +18,7 @@
 #include "gfx/gfx.hpp"
 #include "langset.hpp"
 #include "localize.hpp"
+#include "logical_frame.hpp"
 #include "menu_option.hpp"
 #include "menu_save.hpp"
 #include "mglib.hpp"
@@ -415,6 +416,8 @@ int Run(int argc, const char **argv) {
     InputInit();
 
     gfx::RendererConfig renderer;
+    renderer.logical_width = static_cast<uint32_t>(kLogicalWidth);
+    renderer.logical_height = static_cast<uint32_t>(kLogicalHeight);
     renderer.present_mode = PresentMode(config.present_mode);
     renderer.pipeline_cache = PathsSaveRoot() / "pipeline_cache.bin";
     renderer.progress = ReportShaderProgress;
