@@ -1,5 +1,6 @@
 #pragma once
 
+#include "data/tim2.hpp"
 #include "gfx/gfx.hpp"
 
 #include <libgraph.h>
@@ -64,9 +65,8 @@ bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *leve
 // The inverse of retail's Conv8to32: GS PSMCT32-page order back to linear 8-bit rows.
 void PortUnswizzle8(int width, int height, const u_char *swizzled, u_char *linear);
 
-// The palette entry a CSM1 CLUT image position holds (bits 3 and 4 swapped), and back.
 constexpr unsigned PortClutCsm1(unsigned position) {
-    return (position & ~0x18u) | ((position & 0x08u) << 1) | ((position & 0x10u) >> 1);
+    return kzdata::tim2::ClutCsm1(position);
 }
 
 // Creates the renderer texture (and palette, for an index texture) and registers both. Returns

@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include "data/tim2.hpp"
 #include "logical_frame.hpp"
 #include "mglib_port.hpp"
 #include "texture.hpp"
@@ -117,54 +118,6 @@ void ReportOnce(bool &reported, const char *what, unsigned src, unsigned dst) {
     }
 }
 
-// 8-bit unswizzle tables: BlockConv8to32's lut inverted, per column parity.
-struct InverseLut {
-    uint8_t to_output[2][64];
-
-    constexpr InverseLut() : to_output{} {
-        constexpr uint8_t lut[128] = {
-            0, 36, 8, 44, 1, 37, 9, 45, 2, 38, 10, 46, 3, 39, 11, 47, 4, 32, 12, 40, 5, 33, 13, 41,
-            6, 34, 14, 42, 7, 35, 15, 43, 16, 52, 24, 60, 17, 53, 25, 61, 18, 54, 26, 62, 19, 55, 27, 63,
-            20, 48, 28, 56, 21, 49, 29, 57, 22, 50, 30, 58, 23, 51, 31, 59, 4, 32, 12, 40, 5, 33, 13, 41,
-            6, 34, 14, 42, 7, 35, 15, 43, 0, 36, 8, 44, 1, 37, 9, 45, 2, 38, 10, 46, 3, 39, 11, 47,
-            20, 48, 28, 56, 21, 49, 29, 57, 22, 50, 30, 58, 23, 51, 31, 59, 16, 52, 24, 60, 17, 53, 25, 61,
-            18, 54, 26, 62, 19, 55, 27, 63};
-        for (unsigned parity = 0; parity < 2; parity++) {
-            for (unsigned m = 0; m < 64; m++) {
-                to_output[parity][lut[parity * 64 + m]] = static_cast<uint8_t>(m);
-            }
-        }
-    }
-};
-
-constexpr InverseLut kInverseLut;
-
-// Where Conv8to32 puts the 8-bit texel (x, y) of a width x height image, or -1 where its
-// page-sized work buffers drop it (images narrower than a block).
-long SwizzledOffset(int width, int height, int x, int y) {
-    int pages_x = ((width - 1) >> 7) + 1;
-    int pages_y = ((height - 1) >> 6) + 1;
-    int page_width = pages_x == 1 ? width : 128;
-    int row_bytes = pages_x == 1 ? width * 2 : 256;
-    int row_count = pages_y == 1 ? height >> 1 : 32;
-    int page_x = x / page_width;
-    int page_y = y >> 6;
-    int local_x = x - page_x * page_width;
-    int local_y = y & 63;
-    int block_x = local_x >> 4;
-    int block_y = local_y >> 4;
-    int source = (local_y & 15) * 16 + (local_x & 15);
-    int column = source >> 6;
-    int output = column * 64 + kInverseLut.to_output[column & 1][source & 63];
-    int page_row = block_y * 8 + (output >> 5);
-    int page_column = block_x * 32 + (output & 31);
-    if (page_row >= row_count || page_column >= row_bytes) {
-        return -1;
-    }
-    return static_cast<long>(page_y) * pages_x * row_bytes * row_count + static_cast<long>(row_bytes) * page_x +
-           static_cast<long>(page_row) * row_bytes * pages_x + page_column;
-}
-
 uint32_t Load32(const u_char *p) {
     uint32_t value;
     std::memcpy(&value, p, 4);
@@ -173,51 +126,9 @@ uint32_t Load32(const u_char *p) {
 
 void DecodeLevel(int bpp, unsigned width, unsigned height, const u_char *src, bool swizzled,
                  std::vector<uint8_t> &out) {
-    size_t texels = static_cast<size_t>(width) * height;
-    switch (bpp) {
-        case 0:
-            out.resize(texels);
-            for (size_t i = 0; i < texels; i++) {
-                u_char pair = src[i >> 1];
-                out[i] = (i & 1) ? pair >> 4 : pair & 0xF;
-            }
-            break;
-        case 1:
-            out.resize(texels);
-            if (swizzled) {
-                PortUnswizzle8(static_cast<int>(width), static_cast<int>(height), src, out.data());
-            } else {
-                std::memcpy(out.data(), src, texels);
-            }
-            break;
-        case 2: {
-            // ABGR1555. The GS widens a channel by shifting it and takes alpha from TEXA by the A
-            // bit; the game never programs TEXA for 16-bit images, so the usual TA0 0 / TA1 0x80
-            // is baked in.
-            out.resize(texels * 4);
-            for (size_t i = 0; i < texels; i++) {
-                unsigned pixel = src[i * 2] | src[i * 2 + 1] << 8;
-                out[i * 4 + 0] = static_cast<uint8_t>((pixel & 0x1F) << 3);
-                out[i * 4 + 1] = static_cast<uint8_t>(((pixel >> 5) & 0x1F) << 3);
-                out[i * 4 + 2] = static_cast<uint8_t>(((pixel >> 10) & 0x1F) << 3);
-                out[i * 4 + 3] = (pixel & 0x8000) ? 0x80 : 0;
-            }
-            gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), texels);
-            break;
-        }
-        case 3:
-            out.resize(texels * 4);
-            for (size_t i = 0; i < texels; i++) {
-                out[i * 4 + 0] = src[i * 3 + 0];
-                out[i * 4 + 1] = src[i * 3 + 1];
-                out[i * 4 + 2] = src[i * 3 + 2];
-                out[i * 4 + 3] = 0xFF;
-            }
-            break;
-        case 4:
-            out.assign(src, src + texels * 4);
-            gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), texels);
-            break;
+    kzdata::tim2::DecodeLevel(static_cast<kzdata::tim2::Format>(bpp), width, height, src, swizzled, out);
+    if (bpp == 2 || bpp == 4) {
+        gfx::ConvertPs2Alpha(reinterpret_cast<uint32_t *>(out.data()), static_cast<size_t>(width) * height);
     }
 }
 
@@ -270,12 +181,7 @@ bool ResolveSide(unsigned tbp, unsigned psm, Side &side) {
 } // namespace
 
 void PortUnswizzle8(int width, int height, const u_char *swizzled, u_char *linear) {
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            long offset = SwizzledOffset(width, height, x, y);
-            linear[static_cast<size_t>(y) * width + x] = offset < 0 ? 0 : swizzled[offset];
-        }
-    }
+    kzdata::tim2::Unswizzle8(width, height, swizzled, linear);
 }
 
 bool PortDecodeTexture(int bpp, int width, int height, const u_char *const *levels, int level_count,
