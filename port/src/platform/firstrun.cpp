@@ -22,6 +22,7 @@
 #include "config.hpp"
 #include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
+#include "logical_frame.hpp"
 #include "overlay.hpp"
 #include "paths.hpp"
 #include "window.hpp"
@@ -95,7 +96,7 @@ struct Canvas {
     }
 
     void Centered(float y, float scale, std::string_view text, const Color &color) {
-        Text((gfx::kLogicalWidth - TextWidth(text, scale)) * 0.5f, y, scale, text, color);
+        Text((kLogicalWidth - TextWidth(text, scale)) * 0.5f, y, scale, text, color);
     }
 
     void Present() const {

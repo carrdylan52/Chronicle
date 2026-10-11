@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "draw3d.hpp"
+#include "logical_frame.hpp"
 #include "mglib.hpp"
 #include "renderinfo.hpp"
 #include "texture.hpp"
@@ -67,8 +68,8 @@ bool PrepareRefraction(Refraction &refraction) {
     if (gfx::CurrentRenderTarget() != gfx::kMainTarget || refraction.frame == gfx::kNullTexture) {
         return false;
     }
-    uint32_t width = static_cast<uint32_t>(gfx::kLogicalWidth);
-    uint32_t height = static_cast<uint32_t>(gfx::kLogicalHeight);
+    uint32_t width = static_cast<uint32_t>(kLogicalWidth);
+    uint32_t height = static_cast<uint32_t>(kLogicalHeight);
     refraction.visible = gfx::NamedRenderTarget("water visible", width, height, true, true);
     refraction.refracted = gfx::NamedRenderTarget("water refracted", width, height, false, true);
     if (refraction.visible == gfx::kNullTexture || refraction.refracted == gfx::kNullTexture) {

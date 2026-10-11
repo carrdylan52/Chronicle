@@ -4,6 +4,7 @@
 #include <optional>
 
 #include "draw3d.hpp"
+#include "logical_frame.hpp"
 #include "mglib.hpp"
 
 namespace {
@@ -20,7 +21,7 @@ MGPortRegisters g_current = {
     {},
     {},
     {},
-    InitialTexa(), {0.0f, 0.0f, gfx::kLogicalWidth, gfx::kLogicalHeight}
+    InitialTexa(), {0.0f, 0.0f, kLogicalWidth, kLogicalHeight}
 };
 
 constexpr int kGsOriginX = 27648;

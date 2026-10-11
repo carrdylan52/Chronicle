@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <span>
 
+#include "logical_frame.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
 #include "texture.hpp"
@@ -55,8 +56,8 @@ bool Resolve(u_long tex0, u_long tex1, gfx::DrawState &state, Texture &texture) 
 
     if (texture.binding.texture == gfx::kMainTarget) {
         gfx::TextureHandle snapshot =
-            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(gfx::kLogicalWidth),
-                                   static_cast<uint32_t>(gfx::kLogicalHeight), true, false, true);
+            gfx::NamedRenderTarget(kFrameSnapshot, static_cast<uint32_t>(kLogicalWidth),
+                                   static_cast<uint32_t>(kLogicalHeight), true, false, true);
         if (snapshot == gfx::kNullTexture || !gfx::SnapshotFrame(snapshot)) {
             return false;
         }

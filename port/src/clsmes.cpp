@@ -12,6 +12,7 @@
 #include "gametext.hpp"
 #include "gameutil.hpp"
 #include "localize.hpp"
+#include "logical_frame.hpp"
 #include "mglib.hpp"
 #include "mglib_port.hpp"
 #include "glyph_draw.hpp"
@@ -676,8 +677,8 @@ PORT_OVERRIDE void ClsMes::MakeFukidashi(sceVif1Packet *packet) {
         const float                  fill_bottom = static_cast<float>(SCREEN_HALF_HEIGHT);
         std::array<gfx::Vertex2D, 4> fill = {
             draw2d::Vertex(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
-            draw2d::Vertex(gfx::kLogicalWidth, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
-            draw2d::Vertex(gfx::kLogicalWidth, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
+            draw2d::Vertex(kLogicalWidth, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
+            draw2d::Vertex(kLogicalWidth, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
             draw2d::Vertex(0.0f, fill_bottom, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0),
         };
         gfx::Draw2D(gfx::Primitive::Quads, fill, {}, state);

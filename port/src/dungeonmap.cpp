@@ -14,6 +14,7 @@
 #include "frameattr.hpp"
 #include "framevu1.hpp"
 #include "gfx/gfx.hpp"
+#include "logical_frame.hpp"
 #include "mathutil.hpp"
 #include "mglib.hpp"
 #include "rect.hpp"
@@ -432,8 +433,8 @@ PORT_OVERRIDE void CDungeonMap::DrawMap(CCameraFollow *camera, CFrameVu1 *player
                     gfx::FrameLayout layout = gfx::CurrentFrameLayout();
                     if (layout.aspect == gfx::AspectMode::Fill) {
                         gfx::LogicalRect visible = gfx::VisibleLogicalRect(gfx::kMainTarget);
-                        horizontal_margin = std::max(0.0f, visible.w - gfx::kLogicalWidth) /
-                                            gfx::kLogicalWidth;
+                        horizontal_margin = std::max(0.0f, visible.w - kLogicalWidth) /
+                                            kLogicalWidth;
                     }
                     float facing_limit = -horizontal_margin / std::hypot(1.0f, horizontal_margin);
                     int georama = UserStatus->cur_georama;
