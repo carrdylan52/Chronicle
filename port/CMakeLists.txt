@@ -133,6 +133,9 @@ target_link_libraries(dc_ps2 PRIVATE dc_options)
 # a defined one too, along with the type punning and wraparound the code assumes.
 target_compile_options(dc_ps2 PRIVATE -ftrivial-auto-var-init=zero -fno-strict-return
     -fno-strict-aliasing -fwrapv)
+# The one function of ps2/src that throws or catches, the Metrowerks runtime's __unexpected, is
+# replaced by port/src/runtime.cpp, so the copies compiled here do neither.
+target_compile_options(dc_ps2 PRIVATE -fno-exceptions)
 # What is left on warns about behaviour the port may still need to answer for:
 # uninitialised reads, missing returns, format strings, overlapping copies and
 # the like. What is turned off describes how MWCC-era source is spelled -- string
