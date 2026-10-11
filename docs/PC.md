@@ -108,7 +108,7 @@ and no disc was given at the first-run prompt (one line names it and the
 own message: `LoadFile` prints `File open error "<path>"`). A `PS2_UNIMPLEMENTED`
 stub aborts (SIGABRT) so a debugger or a core dump stops at it.
 
-`<save>/config.json` (`port/src/platform/config.cpp`, read with
+`<save>/config.json` (`port/src/options/config_game.cpp` over Kazarov's `platform/config_base.cpp`, read with
 [nlohmann/json](https://github.com/nlohmann/json); `//` and `/* */` comments
 are allowed, unknown keys and bad values are reported and ignored, and a file
 that is not valid JSON is reported and leaves every default in place). When
@@ -187,11 +187,11 @@ key is optional; these are the defaults:
 }
 ```
 
-Discord Rich Presence (`port/src/presence.cpp`, `port/src/platform/discord.cpp`) speaks Discord's
+Discord Rich Presence (`port/src/presence.cpp`, `tools/kazarov/port/platform/discord.cpp`) speaks Discord's
 local IPC protocol over its Unix socket (a named pipe on Windows), so it needs no Discord library. It shows the character
 played and the town, or the dungeon and floor, and reconnects whenever Discord starts. Discord
-names the game after Chronicle's Discord application, whose id is `kDiscordClientId`
-(`platform/discord.hpp`); that application's Rich Presence art assets are `dark_cloud`, `chronicle` and one per character: `toan`, `xiao`, `goro`, `ruby`,
+names the game after Chronicle's Discord application, whose id is `DISCORD_CLIENT_ID`
+(`port/CMakeLists.txt`); that application's Rich Presence art assets are `dark_cloud`, `chronicle` and one per character: `toan`, `xiao`, `goro`, `ruby`,
 `ungaga` and `osmond`.
 
 `video.detail_distance` is how far away town houses, villagers and dungeon
@@ -228,7 +228,7 @@ are examples of the form (the defaults are in the table below); a
 it finds one without a `config.json`.
 
 The file is read once, at start. The Options screen (below) changes the
-settings through `ConfigChange(config)` (`platform/config.hpp`): the settings
+settings through `ConfigChange(config)` (`options/config_game.hpp`): the settings
 are taken as the file would read them back (a bad value is reported and
 becomes its default), saved, and applied to the running game. The file is
 rewritten whole, as `ConfigSerialize` writes it, so comments in it are not
@@ -257,7 +257,7 @@ next one.
 ### Keyboard and mouse
 
 The keyboard and the mouse drive pad 1 next to the first gamepad
-(`port/src/platform/input.cpp`, `mouse.cpp`); a second gamepad is pad 2.
+(`tools/kazarov/port/platform/input.cpp`, `mouse.cpp`); a second gamepad is pad 2.
 The defaults, and what the game does with each button (PAL, English: the
 dungeon's `PadInput_OK` is cross and `PadInput_NO` circle,
 `ps2/src/dun/gameloop.cpp:1666`):
@@ -486,7 +486,7 @@ the item viewer) and the event script's `GET_APAD` read the stick alone.
 
 ### Scripted input
 
-`--input FILE` (`port/src/platform/input_script.cpp`) replaces the pads with
+`--input FILE` (`tools/kazarov/port/platform/input_script.cpp`) replaces the pads with
 a script, through `InputSetOverride`. Each line is
 
 ```
@@ -781,7 +781,7 @@ With `video.show_fps` (on by default; `fps_toggle`, F3, flips it at any
 time), every presented frame carries one line at the window's top-left
 corner, in the game's own message font (white with a black edge, as the menus
 draw their text) while a mode has the font's textures loaded, and in the
-port's 5x7 font (`port/src/platform/overlay.cpp`, white on a translucent black
+port's 5x7 font (`tools/kazarov/port/platform/overlay.cpp`, white on a translucent black
 backdrop, on whole pixels: one per logical unit, rounded) on the loading
 screens and between modes, where it has not:
 
@@ -866,7 +866,7 @@ replacement units.
   rate is a setting (60 Hz by default); presentation is not tied to it (below).
   `ClockWaitNextTick(hook)` runs a hook over and over while it waits, with the
   elapsed fraction of the tick; `MGEndFrame` presents display frames through it.
-- **Config** (`platform/config`) and **paths** (`platform/paths`): above.
+- **Config** (`options/config_game`, `platform/config_base`) and **paths** (`platform/paths`): above.
 - **Overlay** (`platform/overlay`): the port's 5x7 font (the first-run screen
   draws with it too), a line of text drawn with `gfx::Draw2D` on whole pixels
   at the window's corner and recorded as a display list of its own, and the
@@ -1133,9 +1133,9 @@ state write explicitly record the current game's clear flag.
 
 `port/src/memorycardaccess.cpp` replaces the operations of
 `CMemoryCardAccess` with plain reads and writes of these files
-(`port/src/save_slots.cpp` names and lists them, `port/src/platform/save_state.cpp`
+(`port/src/save_slots.cpp` names and lists them, `tools/kazarov/port/platform/save_state.cpp`
 reads and writes `state.json`); each finishes in the step that starts it. Every write goes through `FilesWrite`
-(`port/src/platform/files.cpp`): a temporary file of its own beside the
+(`tools/kazarov/port/platform/files.cpp`): a temporary file of its own beside the
 target, `<target>.<16 hex digits>.tmp`, created exclusively, written,
 flushed to the disk and closed, then moved onto the target. Until that move
 the target keeps what it held. Removing the temporary file after a failure
@@ -1458,7 +1458,7 @@ The hit areas are the places the pages draw their brackets at (`ItemMenuModeDraw
 `InitializeDataBuffer`, `BufferAllClear`, `SetDataBuffer` and
 `SetPacketReadBuffer` (`dataset.cpp`, `dataalloc2_1.cpp`) give each arena its
 own block, an ordinary anonymous mapping wherever the system puts it
-(`port/src/platform/memory.hpp`), sized at four times the quadwords retail
+(`tools/kazarov/port/platform/memory.hpp`), sized at four times the quadwords retail
 asked for (`kArenaHeadroom`, `port/src/arena.hpp`), because the game sizes
 allocations with the host's larger `sizeof`s. A guard page follows each
 block, and an overflow aborts naming the arena instead of retail's endless
@@ -1908,7 +1908,7 @@ The layout of `data/` is the archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,
 as the game's `strcasecmp` does, so the case on disk does not matter.
 
-`port/src/platform/paths.cpp` finds the data directory from `--data <dir>`,
+`tools/kazarov/port/platform/paths.cpp` finds the data directory from `--data <dir>`,
 then `DC_DATA`, then `data/` in the working directory, then `data/` beside
 the executable, and failing all of those `$XDG_DATA_HOME/chronicle/data`
 (`~/.local/share/chronicle/data` when `XDG_DATA_HOME` is unset or relative),
@@ -1919,7 +1919,7 @@ self-contained, and otherwise to `$XDG_DATA_HOME/chronicle/save`. It is
 created when first used.
 
 When the data directory is missing or holds no file and the run is not
-headless, `FirstRunIfNoData` (`port/src/platform/firstrun.cpp`) opens the
+headless, `FirstRunIfNoData` (`tools/kazarov/port/platform/firstrun.cpp`) opens the
 window and asks for the disc: a disc image through SDL's file dialog (the
 file-chooser portal under Flatpak, zenity elsewhere), or a folder holding
 `DATA.DAT` and `DATA.HD2`. It extracts with `dcdata`'s core on a worker
