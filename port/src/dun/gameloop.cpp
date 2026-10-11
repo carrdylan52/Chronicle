@@ -50,7 +50,7 @@
 #include "motionmodel.hpp"
 #include "nowload.hpp"
 #include "npcharacter.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "randomitem.hpp"
 #include "rect.hpp"
 #include "runeffect.hpp"

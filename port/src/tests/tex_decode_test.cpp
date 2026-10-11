@@ -6,7 +6,7 @@
 #include "gfx/context.hpp"
 #include "tex_fixture.hpp"
 
-using namespace dc::test;
+using namespace kz::test;
 using namespace texfix;
 
 namespace {

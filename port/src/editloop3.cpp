@@ -21,7 +21,7 @@
 #include "mathutil.hpp"
 #include "npcharacter.hpp"
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 
 void PortEdSetVillagerNextPos(CNPCharacter *villager, VILLAGER_INFO *info, CEditGround *ground);
 

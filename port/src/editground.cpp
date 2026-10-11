@@ -19,7 +19,7 @@
 #include "savedata.hpp"
 #include "vector3.hpp"
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 
 #pragma clang diagnostic ignored "-Wwritable-strings"
 

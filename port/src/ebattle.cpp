@@ -7,7 +7,7 @@
 #include "editloop.hpp"
 #include "gamepad.hpp"
 #include "menu_save.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/input.hpp"
 #include "snd.hpp"
 

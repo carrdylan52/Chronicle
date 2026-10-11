@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/window.hpp"
 
 class CSaveData;

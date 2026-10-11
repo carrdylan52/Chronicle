@@ -10,7 +10,7 @@
 #include <string>
 #include <system_error>
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/paths.hpp"
 #include "trace.hpp"
 

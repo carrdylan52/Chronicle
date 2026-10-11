@@ -7,19 +7,19 @@
 #include "../camera_port.hpp"
 #include "../camera_zoom.hpp"
 #include "../mouse_collision.hpp"
-#include "../platform/clock.hpp"
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
-#include "../platform/paths.hpp"
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "dungeonmap.hpp"
 #include "frame.hpp"
+#include "options/config_game.hpp"
+#include "platform/clock.hpp"
+#include "platform/input.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 TEST(CameraZoom, RetailRelaxationCannotExpandPastAWallAndResetReturnsToNormal) {
     auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-test-" + std::to_string(dc::test::ProcessId()));
+                ("chronicle-zoom-test-" + std::to_string(kz::test::ProcessId()));
 
     struct Cleanup {
         std::filesystem::path root;
@@ -109,7 +109,7 @@ TEST(CameraZoom, RetailRelaxationCannotExpandPastAWallAndResetReturnsToNormal) {
 
 TEST(CameraZoom, ExtendedDistanceInClearSpaceClampsAndResets) {
     auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-range-test-" + std::to_string(dc::test::ProcessId()));
+                ("chronicle-zoom-range-test-" + std::to_string(kz::test::ProcessId()));
 
     struct Cleanup {
         std::filesystem::path root;
@@ -158,7 +158,7 @@ TEST(CameraZoom, ExtendedDistanceInClearSpaceClampsAndResets) {
 
 TEST(CameraZoom, StationaryContractedEyeCanZoomInAndTurnWithoutCrossingWall) {
     auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-zoom-recovery-test-" + std::to_string(dc::test::ProcessId()));
+                ("chronicle-zoom-recovery-test-" + std::to_string(kz::test::ProcessId()));
 
     struct Cleanup {
         std::filesystem::path root;

@@ -14,21 +14,21 @@
 
 #include "../camera_port.hpp"
 #include "../mouse_collision.hpp"
-#include "../platform/clock.hpp"
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
-#include "../platform/paths.hpp"
 #include "camera.hpp"
 #include "camerafollow.hpp"
 #include "character.hpp"
 #include "collision.hpp"
+#include "dungeonmap.hpp"
 #include "ebattle.hpp"
 #include "edit.hpp"
 #include "editarea.hpp"
 #include "editground.hpp"
-#include "dungeonmap.hpp"
 #include "frame.hpp"
 #include "gamepad.hpp"
+#include "options/config_game.hpp"
+#include "platform/clock.hpp"
+#include "platform/input.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 extern int   viewMode;
@@ -259,7 +259,7 @@ TEST(PlatformMouseLook, HorizontalMouseMotionHoldsHeightAndIdleResumesSoftDescen
 
 TEST(PlatformMouseLook, AutoReturnSettingChangesImmediatelyAndMouseMotionPausesEveryRate) {
     auto root = std::filesystem::temp_directory_path() /
-                ("chronicle-height-rate-test-" + std::to_string(dc::test::ProcessId()));
+                ("chronicle-height-rate-test-" + std::to_string(kz::test::ProcessId()));
     struct Cleanup {
         std::filesystem::path root;
         ~Cleanup() {

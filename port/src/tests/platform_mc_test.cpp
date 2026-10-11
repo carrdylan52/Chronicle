@@ -20,10 +20,10 @@ namespace fs = std::filesystem;
 namespace {
 
 fs::path UseTempSaveRoot() {
-    fs::path root = fs::temp_directory_path() / ("dc_mc_test_" + std::to_string(dc::test::ProcessId()));
+    fs::path root = fs::temp_directory_path() / ("dc_mc_test_" + std::to_string(kz::test::ProcessId()));
     fs::remove_all(root);
     fs::create_directories(root);
-    dc::test::SetEnv("DC_SAVE", root, 1);
+    kz::test::SetEnv("DC_SAVE", root, 1);
     return root;
 }
 

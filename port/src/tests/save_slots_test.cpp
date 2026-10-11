@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 
-#include "../platform/input.hpp"
 #include "gameloop.hpp"
 #include "gamepad.hpp"
 #include "memcard.hpp"
 #include "memorycardaccess.hpp"
 #include "menu_save.hpp"
+#include "platform/input.hpp"
 #include "platform/paths.hpp"
 #include "platform/save_state.hpp"
 #include "platform_fixture.hpp"
@@ -47,7 +47,7 @@ fs::path UseTempSaveRoot() {
     static unsigned sequence = 0;
     fs::path        root;
     do {
-        root = fs::temp_directory_path() / ("dc_save_test_" + std::to_string(dc::test::ProcessId()) + "_" + std::to_string(sequence++));
+        root = fs::temp_directory_path() / ("dc_save_test_" + std::to_string(kz::test::ProcessId()) + "_" + std::to_string(sequence++));
     } while (!fs::create_directory(root));
     PathsSetSaveRoot(root);
     return root;

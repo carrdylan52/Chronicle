@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "gametext.hpp"
+#include "options/config_game.hpp"
 #include "options/rows.hpp"
-#include "platform/config.hpp"
 
 class CTexture;
 

@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python3
 """Rasterises the FPS counter's glyphs from DarkCloudCompendium.ttf (Dark Cloud Compendium Community
-Font by Dayuppy/MoonBunny) into port/src/platform/overlay_font.inc.
+Font by Dayuppy/MoonBunny) into tools/kazarov/port/platform/overlay_font.inc.
 
     python tools/font/gen_overlay_font.py [size]
 """
@@ -37,5 +37,5 @@ for c, adv, x, y, w, h, name in glyphs:
     ch = "'" + (chr(92) + "'" if c == "'" else c) + "'"
     out.append(f"    {{{ch}, {adv}, {x}, {y}, {w}, {h}, {name}}},")
 out.append("};")
-(here.parent.parent / "port/src/platform/overlay_font.inc").write_text("\n".join(out) + "\n")
+(here.parent.parent / "tools/kazarov/port/platform/overlay_font.inc").write_text("\n".join(out) + "\n")
 print("ascent", ascent, "descent", descent, "glyphs", len(glyphs))

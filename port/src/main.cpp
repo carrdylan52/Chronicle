@@ -7,6 +7,7 @@
 #include <system_error>
 #include <vector>
 
+#include "../../tools/dcdata/dcdata.hpp"
 #include "audio/mixer.hpp"
 #include "audio/soundtrack.hpp"
 #include "battle_globals.hpp"
@@ -23,9 +24,9 @@
 #include "menu_save.hpp"
 #include "mglib.hpp"
 #include "nowload.hpp"
+#include "options/config_game.hpp"
 #include "platform/audio.hpp"
 #include "platform/clock.hpp"
-#include "platform/config.hpp"
 #include "platform/discord.hpp"
 #include "platform/display.hpp"
 #include "platform/firstrun.hpp"
@@ -297,10 +298,33 @@ GamePresentSettings PresentSettings(const Config &config) {
             .fps_detail = config.fps_detail};
 }
 
+FirstRunGame DiscExtraction() {
+    FirstRunGame game;
+    game.extract = [](const std::filesystem::path &source, const std::filesystem::path &target,
+                      const FirstRunTick &tick) {
+        dcdata::Archive archive = dcdata::OpenArchive(source);
+        dcdata::Extract(archive, target, nullptr, [&](const dcdata::Progress &progress) {
+            return tick({progress.files, progress.total_files, progress.bytes, progress.total_bytes});
+        });
+        std::vector<unsigned char>          hd2 = dcdata::ReadExtent(archive.hd2);
+        std::vector<dcdata::Record>         records = dcdata::ParseIndex(hd2);
+        std::vector<const dcdata::Record *> bad = dcdata::Mismatched(records, target);
+        if (!bad.empty()) {
+            dcdata::Fail("{} files are missing or the wrong size after extraction, {} among them", bad.size(),
+                         bad.front()->path);
+        }
+    };
+    game.folder_label = "FOLDER WITH DATA.DAT AND DATA.HD2";
+    game.folder_prompt = "Choose the folder that holds DATA.DAT and DATA.HD2 from your PAL disc";
+    game.image_prompt = "Choose your PAL disc image: the game data is extracted from it once";
+    game.tool = "dcdata";
+    return game;
+}
+
 void ApplyDiscord(const Config &config) {
     DiscordStop();
     if (config.discord_rich_presence && !g_options.headless) {
-        DiscordStart(kDiscordClientId);
+        DiscordStart();
     }
 }
 
@@ -366,7 +390,7 @@ int Run(int argc, const char **argv) {
     argc = PathsConsumeArgs(argc, argv);
     g_options = ParseOptions(argc, argv);
     Options &options = g_options;
-    FirstRunIfNoData(options.headless);
+    FirstRunIfNoData(options.headless, DiscExtraction());
     if (options.jump == nullptr) {
         options.jump = std::getenv("DC_JUMP");
     }

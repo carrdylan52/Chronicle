@@ -56,7 +56,7 @@ else()
     file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_vorbis.c
         ${AUDIO_DECODER_DIR}/stb_vorbis.c EXPECTED_HASH SHA256=4c7cb2ff1f7011e9d67950446b7eb9ca044f2e464d76bfbb0b84dd2e23e65636)
 endif()
-# The message font's rasterizer (platform/ttffont.cpp): a single-file library, public domain or MIT, at a pinned
+# The message font's rasterizer (Kazarov's platform/ttffont.cpp): a single-file library, public domain or MIT, at a pinned
 # commit. Flatpak has it as a source, since its build sandbox has no network; other builds fetch the same file.
 if(EXISTS ${CMAKE_SOURCE_DIR}/stb_truetype/stb_truetype.h)
     set(TTF_DIR ${CMAKE_SOURCE_DIR}/stb_truetype)
@@ -65,7 +65,7 @@ else()
     file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
         ${TTF_DIR}/stb_truetype.h EXPECTED_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab)
 endif()
-# The button symbols' PNG atlases (platform/glyphs.cpp): the same library family at the same pinned commit, a
+# The button symbols' PNG atlases (Kazarov's platform/glyphs.cpp): the same library family at the same pinned commit, a
 # Flatpak source beside stb_truetype.h, or fetched.
 if(NOT EXISTS ${TTF_DIR}/stb_image.h)
     file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h
@@ -179,20 +179,12 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
 
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
 list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
-# The host side (platform, audio and Kazarov's gfx) never sees a game header, so it is built
+# The host side (audio and Kazarov's gfx and platform) never sees a game header, so it is built
 # without dc_options: no port.h ahead of each unit and no game include paths.
 set(HOST_SOURCES ${PORT_LIB_SOURCES})
-list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/(platform|audio)/")
-list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/(platform|audio)/")
+list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/audio/")
+list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/audio/")
 set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
-
-# port/icon/chronicle-128.rgba, the window icon's raw 128x128 RGBA pixels, as a byte array.
-set(ICON_RGBA ${CMAKE_SOURCE_DIR}/port/icon/chronicle-128.rgba)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ICON_RGBA})
-file(READ ${ICON_RGBA} icon_hex HEX)
-string(REGEX REPLACE "(..)" "0x\\1," icon_bytes "${icon_hex}")
-file(CONFIGURE OUTPUT ${GENERATED_DIR}/icon/chronicle.hpp
-    CONTENT "#pragma once\n#include <cstdint>\ninline constexpr int kIconSize = 128;\ninline constexpr std::uint8_t kIconRgba[] = {${icon_bytes}};\n")
 
 # CREDITS, one contributor a line and # for comments, as the About page's list of names.
 set(CREDITS_FILE ${CMAKE_SOURCE_DIR}/CREDITS)
@@ -214,7 +206,12 @@ endif()
 file(CONFIGURE OUTPUT ${GENERATED_DIR}/options/credits.hpp
     CONTENT "#pragma once\ninline constexpr const char *kCredits[] = {${credit_names}};\n")
 
-kz_port_library(dc_host APP_NAME "Dark Cloud" APP_ID chronicle ENV_PREFIX DC_ MIN_VULKAN 1.3)
+kz_port_library(dc_host
+    APP_NAME "Dark Cloud" APP_ID chronicle APP_IDENTIFIER dcdecomp.darkcloud ENV_PREFIX DC_ MIN_VULKAN 1.3
+    ICON ${CMAKE_SOURCE_DIR}/port/icon/chronicle-128.rgba
+    PROJECT_LABEL "Chronicle on GitHub" PROJECT_URL https://github.com/TheMoonPeople/Chronicle
+    DISCORD_CLIENT_ID 1556980864171245638 DISCORD_IMAGE chronicle
+    DISCORD_IMAGE_TEXT "Chronicle, the Dark Cloud decompilation")
 target_sources(dc_host PRIVATE ${HOST_SOURCES})
 target_include_directories(dc_host PRIVATE ${PORT_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
 
@@ -252,7 +249,7 @@ endif()
 function(dc_link_game target)
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_host> $<TARGET_OBJECTS:dc_ps2>)
     target_link_libraries(${target} PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan)
-    target_include_directories(${target} PRIVATE ${PORT_DIR} ${KZ_ROOT}/port)
+    target_include_directories(${target} PRIVATE ${PORT_DIR} ${KZ_ROOT}/port ${GENERATED_DIR})
     target_compile_options(${target} PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
         -Wno-overloaded-virtual -Wno-unused-function)
     target_link_options(${target} PRIVATE ${DC_LINK_OPTIONS})

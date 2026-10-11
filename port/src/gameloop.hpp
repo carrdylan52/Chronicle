@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "gfx/gfx.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 
 class CSaveData;
 

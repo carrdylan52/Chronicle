@@ -8,7 +8,7 @@
 #include <string>
 
 #include "localize.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/imagefile.hpp"
 #include "texture_port.hpp"
 

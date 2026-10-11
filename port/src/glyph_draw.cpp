@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "draw2d_port.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "text_shadow.hpp"
 
 namespace {

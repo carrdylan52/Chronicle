@@ -6,11 +6,11 @@
 #include <string>
 #include <vector>
 
-#include "../platform/paths.hpp"
 #include "data_fixture.hpp"
 #include "dataread.hpp"
 #include "dataread_port.hpp"
 #include "exitcodes.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 using namespace datafix;
@@ -140,18 +140,18 @@ TEST(DataRead, Loadfile2FoldsCaseAndDevices) {
 TEST(DataRead, LoadfileMissingAsserts) {
     fs::path dir = InstallStandardData("read_assert");
     int      size;
-    DC_ASSERT_EXIT([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }, kExitGameAssert);
+    KZ_ASSERT_EXIT([&] { LoadFile(Mutable("nothing/here.bin"), buffer, &size); }, kExitGameAssert);
     fs::remove_all(dir);
 }
 
 TEST(DataRead, InitcdfileRequiresData) {
     fs::path dir = TempDir("read_nodata");
     PathsSetDataRoot(dir / "data");
-    DC_ASSERT_ABORT([] { InitCDFile(); });
+    KZ_ASSERT_ABORT([] { InitCDFile(); });
     fs::create_directories(dir / "data/empty_dir");
-    DC_ASSERT_ABORT([] { InitCDFile(); });
+    KZ_ASSERT_ABORT([] { InitCDFile(); });
     WriteBytes(dir / "data/a.bin", Pattern(3, 0));
-    DC_ASSERT_EXIT([] { InitCDFile(); }, 0);
+    KZ_ASSERT_EXIT([] { InitCDFile(); }, 0);
     fs::remove_all(dir);
 }
 
@@ -266,8 +266,8 @@ TEST(DataRead, PathsFromArguments) {
 
 TEST(DataRead, PathsFromEnvironment) {
     fs::path dir = TempDir("paths_env");
-    dc::test::SetEnv("DC_DATA", (dir / "env_data"), 1);
-    dc::test::SetEnv("DC_SAVE", (dir / "env_save"), 1);
+    kz::test::SetEnv("DC_DATA", (dir / "env_data"), 1);
+    kz::test::SetEnv("DC_SAVE", (dir / "env_save"), 1);
     ASSERT_TRUE(PathsDataRoot() == dir / "env_data");
     ASSERT_TRUE(PathsSaveRoot() == dir / "env_save" && fs::is_directory(dir / "env_save"));
     PathsSetDataRoot(dir / "flag");
@@ -277,8 +277,8 @@ TEST(DataRead, PathsFromEnvironment) {
 
 TEST(DataRead, PathsDefaultToWorkingDirectory) {
     fs::path dir = TempDir("paths_cwd");
-    dc::test::UnsetEnv("DC_DATA");
-    dc::test::UnsetEnv("DC_SAVE");
+    kz::test::UnsetEnv("DC_DATA");
+    kz::test::UnsetEnv("DC_SAVE");
     fs::create_directories(dir / "data");
     fs::current_path(dir);
     ASSERT_TRUE(PathsDataRoot() == dir / "data");

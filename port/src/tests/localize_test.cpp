@@ -481,7 +481,7 @@ TEST(Localize, PatchesChainAndAFilesTextWins) {
 
 // ---- game.language ----
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 
 TEST(LocalizeLanguage, ConfigReadsAndWritesTheLanguage) {
     EXPECT_EQ(ConfigParse("").language, 0);

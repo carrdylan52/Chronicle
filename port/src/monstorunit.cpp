@@ -7,7 +7,7 @@
 #include "itemdata.hpp"
 #include "mglib.hpp"
 
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 
 // Retail's DrawShadowMonstor, which casts the shadows of the monsters taking part. A dormant
 // monster within video.detail_distance of the player draws its model (DrawMonstorDetail,

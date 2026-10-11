@@ -9,8 +9,8 @@
 #include <SDL3/SDL_gamepad.h>
 #include <nlohmann/json.hpp>
 
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
+#include "options/config_game.hpp"
+#include "platform/input.hpp"
 
 // The button symbols (platform/glyphs.hpp): their two settings, the key names the keyboard style looks
 // glyphs up by, and the shipped glyphs.json the names must be found in.

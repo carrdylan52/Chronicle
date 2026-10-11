@@ -8,12 +8,12 @@
 #include <string_view>
 
 #include "../gameloop.hpp"
-#include "../platform/clock.hpp"
-#include "../platform/config.hpp"
-#include "../platform/input.hpp"
-#include "../platform/input_script.hpp"
 #include "gamepad.hpp"
 #include "mainselect.hpp"
+#include "options/config_game.hpp"
+#include "platform/clock.hpp"
+#include "platform/input.hpp"
+#include "platform/input_script.hpp"
 
 // CGamePad::Init waits on sceGsSyncV, which lives in the libgraph stub, so
 // these tests do what Init does to the library themselves (scePadInit and

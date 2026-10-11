@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "dualsense.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/touchpad.hpp"
 
 namespace {

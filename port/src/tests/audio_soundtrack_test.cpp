@@ -12,8 +12,8 @@
 #include "../audio/mixer.hpp"
 #include "../audio/pcm.hpp"
 #include "../audio/soundtrack.hpp"
-#include "../platform/config.hpp"
-#include "../platform/paths.hpp"
+#include "options/config_game.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 namespace {
@@ -80,7 +80,7 @@ TEST(AudioSoundtrack, RefusesWhatItCannotDecode) {
 
 TEST(AudioSoundtrack, CreatesMissingMappingAndPreservesExistingOne) {
     const auto base = std::filesystem::temp_directory_path() /
-                      ("dc_soundtrack_create_" + std::to_string(dc::test::ProcessId()));
+                      ("dc_soundtrack_create_" + std::to_string(kz::test::ProcessId()));
     std::filesystem::remove_all(base);
     PathsSetSaveRoot(base / "save");
     ASSERT_TRUE(audio::SoundtrackEnsure());
@@ -102,7 +102,7 @@ TEST(AudioSoundtrack, CreatesMissingMappingAndPreservesExistingOne) {
 
 TEST(AudioSoundtrack, ReadsVersionedOverridesBesideSave) {
     const auto base = std::filesystem::temp_directory_path() /
-                      ("dc_soundtrack_mapping_" + std::to_string(dc::test::ProcessId()));
+                      ("dc_soundtrack_mapping_" + std::to_string(kz::test::ProcessId()));
     const auto save = base / "save";
     const auto soundtrack = base / "soundtrack";
     std::filesystem::create_directories(soundtrack);
@@ -135,7 +135,7 @@ TEST(AudioSoundtrack, ReadsVersionedOverridesBesideSave) {
 
 TEST(AudioSoundtrack, RejectsUnsupportedMappingVersion) {
     const auto base = std::filesystem::temp_directory_path() /
-                      ("dc_soundtrack_version_" + std::to_string(dc::test::ProcessId()));
+                      ("dc_soundtrack_version_" + std::to_string(kz::test::ProcessId()));
     std::filesystem::create_directories(base / "soundtrack");
     PathsSetSaveRoot(base / "save");
     Config config;

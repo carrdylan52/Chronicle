@@ -8,13 +8,13 @@
 #include <numbers>
 #include <vector>
 
+#include "camera_zoom.hpp"
 #include "camerafollow.hpp"
 #include "collision.hpp"
 #include "editground.hpp"
 #include "gameutil.hpp"
 #include "mouse_collision.hpp"
-#include "camera_zoom.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/input.hpp"
 
 namespace {

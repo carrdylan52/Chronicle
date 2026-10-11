@@ -127,7 +127,7 @@ inline Bytes Clut256(std::initializer_list<std::pair<int, uint32_t>> entries) {
 alignas(128) inline u_long128 staging[1 << 16];
 
 struct TexEnv {
-    dc::test::GfxFixture gfx;
+    kz::test::GfxFixture gfx;
 
     TexEnv() {
         TexManager.Initialize(16352);
@@ -141,7 +141,7 @@ struct TexEnv {
               const gfx::DrawState &state = {}) {
         gfx::TextureBinding binding = ref.binding;
         binding.filter = gfx::Filter::Nearest;
-        auto quad = dc::test::Quad(x, y, w, h, {0x80, 0x80, 0x80, 0x80}, u0, v0, u1, v1);
+        auto quad = kz::test::Quad(x, y, w, h, {0x80, 0x80, 0x80, 0x80}, u0, v0, u1, v1);
         gfx::Draw2D(gfx::Primitive::Quads, quad, binding, state);
     }
 };

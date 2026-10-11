@@ -18,7 +18,7 @@
 #include "dataread.hpp"
 #include "mainselect.hpp"
 #include "menu_option.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/paths.hpp"
 
 namespace fs = std::filesystem;

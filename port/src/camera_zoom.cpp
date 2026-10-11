@@ -10,7 +10,7 @@
 #include "collision.hpp"
 #include "dungeonmap.hpp"
 #include "mouse_collision.hpp"
-#include "platform/config.hpp"
+#include "options/config_game.hpp"
 #include "platform/input.hpp"
 
 extern float camera_near_dist;

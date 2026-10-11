@@ -25,7 +25,7 @@ const unsigned char kPng[] = {
 
 struct TextureDir {
     // Its own per process: ctest runs each test in a process of its own, side by side, and each clears its folder.
-    fs::path dir = fs::temp_directory_path() / ("dc_localize_texture_test_" + std::to_string(dc::test::ProcessId()));
+    fs::path dir = fs::temp_directory_path() / ("dc_localize_texture_test_" + std::to_string(kz::test::ProcessId()));
 
     TextureDir() {
         std::error_code error;

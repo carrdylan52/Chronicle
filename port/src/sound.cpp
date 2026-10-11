@@ -14,8 +14,8 @@
 #include "audio/soundtrack.hpp"
 #include "audio/trace.hpp"
 #include "dataread.hpp"
+#include "options/config_game.hpp"
 #include "platform/audio.hpp"
-#include "platform/config.hpp"
 
 // The IOP's MIDI player is the port's audio::Mixer. Banks and sequences are copied into it rather
 // than into IOP and SPU memory, so the SPU address bookkeeping below survives only to keep
