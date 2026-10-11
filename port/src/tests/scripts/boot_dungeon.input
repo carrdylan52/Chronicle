@@ -1,0 +1,5 @@
+# With --jump dungeon:0 --fast-load: the Divine Beast Cave floor select, then floor 1
+# through its loading screen until the Mayor's event script takes over.
+0
+60 cross
+62
