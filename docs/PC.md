@@ -830,10 +830,10 @@ that mode's `case`: the developer menu sets `mode` itself and returns 1.
 
 ## Platform
 
-`port/src/platform`, `port/src/gfx` and `port/src/audio` are the host side.
-They build as `dc_host` without `port.h` or the game's include paths, so no
-game header or SDK type reaches them. Game types meet them only in the
-replacement units.
+Kazarov's `port/platform`, `port/gfx`, `port/audio`, `port/sce_core` and
+`port/runtime` (under `tools/kazarov`) are the host side. They build as
+`dc_host` without `port.h` or the game's include paths, so no game header or SDK
+type reaches them. Game types meet them only in the replacement units.
 
 - **Window** (`platform/window`): SDL3 window, resizable, high pixel density,
   optionally fullscreen; `WindowSetMode` changes its size and fullscreen
@@ -1035,14 +1035,14 @@ share small internal headers:
 
 ## Audio
 
-All music and effects are sequenced. `port/src/audio` decodes VAG ADPCM,
-parses HD banks and SQ sequences, and runs a sixteen-port MIDI player into a
-48-voice synth with envelopes and an approximated reverb (`audio::Mixer`).
-`port/src/sound.cpp` replaces `CSound` (bank and sequence transfers, play,
-stop, fades, volumes, effect messages) on that mixer, and
+All music and effects are sequenced. `tools/kazarov/port/audio` decodes VAG
+ADPCM, parses HD banks and SQ sequences, and runs a sixteen-port MIDI player
+into a 48-voice synth with envelopes and an approximated reverb
+(`audio::Mixer`). `port/src/sound.cpp` replaces `CSound` (bank and sequence
+transfers, play, stop, fades, volumes, effect messages) on that mixer, and
 `gameutil_midi.cpp` answers the EZMIDI RPC commands for anything that still
-sends them. `main` starts the output; `CSound::Init` starts it too if it is
-not running.
+sends them. `main` starts the output; `CSound::Init` starts it too if it is not
+running.
 
 The formats and the synth's arithmetic were checked against every bank and
 sequence on the PAL disc and against the IOP modules the game loads
@@ -1233,12 +1233,13 @@ New-Item -ItemType Directory -Path $slot -ErrorAction Stop
 The folder number may differ from the exported file number. Keep the
 original export; no icons or configuration file need to accompany the copy.
 
-`sce/libmc.cpp` still implements libmc on `<save>/mc0/` and `<save>/mc1/`, a
-directory per card, every command finishing inside the call that issues it
-and the next `sceMcSync` reporting the function number and result. The game
-reaches none of it but `MemCheckInit`'s `sceMcInit`, in the boot card check
-the port skips; `tests/platform_mc_test.cpp` covers it. `sce/sifdev.cpp` implements `sceOpen`,
-`sceRead`, `sceWrite`, `sceLseek` and `sceClose` on `<save>/host0/` with the
+`sce/libmc.cpp` forwards libmc to `tools/kazarov/port/sce_core/mc_store`, which
+keeps it on `<save>/mc0/` and `<save>/mc1/`, a directory per card, every command
+finishing inside the call that issues it and the next `sceMcSync` reporting the
+function number and result. The game reaches none of it but `MemCheckInit`'s
+`sceMcInit`, in the boot card check the port skips; `tests/platform_mc_test.cpp`
+covers it. `sce/sifdev.cpp` forwards `sceOpen`, `sceRead`, `sceWrite`,
+`sceLseek` and `sceClose` to `sce_core/host0`, on `<save>/host0/` with the
 device prefix stripped (the debug dump `edit.cpp` writes to `host0:`), and
 `WriteFile` writes there too.
 
@@ -1458,12 +1459,12 @@ The hit areas are the places the pages draw their brackets at (`ItemMenuModeDraw
 `InitializeDataBuffer`, `BufferAllClear`, `SetDataBuffer` and
 `SetPacketReadBuffer` (`dataset.cpp`, `dataalloc2_1.cpp`) give each arena its
 own block, an ordinary anonymous mapping wherever the system puts it
-(`tools/kazarov/port/platform/memory.hpp`), sized at four times the quadwords retail
-asked for (`kArenaHeadroom`, `port/src/arena.hpp`), because the game sizes
-allocations with the host's larger `sizeof`s. A guard page follows each
-block, and an overflow aborts naming the arena instead of retail's endless
-loop. A debug build stops when no block lies above 4 GiB, so a mapping that
-drifted low cannot hide a pointer the game truncates (below).
+(`tools/kazarov/port/platform/memory.hpp`), sized at four times the quadwords
+retail asked for (`kArenaHeadroom`, `tools/kazarov/port/runtime/arena.hpp`),
+because the game sizes allocations with the host's larger `sizeof`s. A guard
+page follows each block, and an overflow aborts naming the arena instead of
+retail's endless loop. A debug build stops when no block lies above 4 GiB, so a
+mapping that drifted low cannot hide a pointer the game truncates (below).
 
 Retail places objects in runs whose quadword counts it wrote by hand
 (`new ((u_long128 *) alloc->Alloc(4)) CCollisionMDT`), and the host's object is
@@ -1519,26 +1520,31 @@ widens it against the image's own address.
 
 ## What is still a stub
 
-`port/src/stubs/sce/` holds the remaining SDK stubs: libdma, libgraph (all but
-`sceGsSyncV`, which is `port/src/sce/libgraph.cpp`) and libpkt. Each calls
-`PS2_UNIMPLEMENTED()` (`port/include/port.h`), which prints the function,
-file and line and aborts. They stay stubs by design: the port does not
-emulate DMA chains, VIF/GIF packets or the GS, so a call that reaches one
-is a drawing path no replacement unit covers yet.
+The remaining SDK functions, libdma, libgraph (all but `sceGsSyncV`, which is
+`port/src/sce/libgraph.cpp`) and libpkt, are the `stub` rows of
+`docs/port/ASM_LEDGER.tsv`. `tools/kazarov/scripts/gen_sce_stubs.py` writes them
+at configure time, spelled as `ps2/include/sce` declares them, into
+`port/build/*/generated/stubs/sce/`. Each calls `PS2_UNIMPLEMENTED()`
+(`port/include/port.h`), which prints the function, file and line and aborts.
+They stay stubs by design: the port does not emulate DMA chains, VIF/GIF packets
+or the GS, so a call that reaches one is a drawing path no replacement unit
+covers yet.
 
-Everything else from the SDK is implemented in `port/src/sce/`: libvu0 in
-C++ (static constructors call it before `main`), libpad, libmc, sifdev,
-eekernel (`FlushCache` and friends do nothing, `Exit` exits), libcdvd's
-`sceCdInit`/`sceCdMmode` and sifrpc's IOP boot and module loads (no-ops).
-The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit` does
-nothing; `LoadOverlay` reconstructs selected title objects when switching to
-the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
-status 4, `exit__2` exits. The same file replaces the stand-ins in `ps2/src`
-for what the PS2 runtime generated that use names only the PS2 link defines:
-four constructors and `__unexpected` become functions that call
+Everything else from the SDK is in `port/src/sce/`, mostly as adapters that
+include the game's SDK header and forward to `tools/kazarov/port/sce_core`:
+libvu0 in C++ (static constructors call it before `main`), libpad, libmc,
+sifdev, eekernel (`FlushCache` and friends do nothing, `Exit` is `exit__2`),
+libcdvd's `sceCdInit`/`sceCdMmode` and sifrpc's IOP boot and module loads
+(no-ops). The Metrowerks runtime calls are in `port/src/runtime.cpp`: `mwInit`
+does nothing; `LoadOverlay` reconstructs selected title objects when switching
+to the title overlay; `mwLoadOverlay` succeeds, `__assert` prints and exits with
+status 4, `exit__2` closes the memory card files and the audio device and exits
+(`tools/kazarov/port/runtime/mw_runtime`). The same file replaces the stand-ins
+in `ps2/src` for what the PS2 runtime generated that use names only the PS2 link
+defines: four constructors and `__unexpected` become functions that call
 `PS2_UNIMPLEMENTED()`, and `std::exception`'s virtual table and the overlay
-address table become empty tables. Nothing in the port reaches them, but a
-COFF link wants every name an object uses defined.
+address table become empty tables. Nothing in the port reaches them, but a COFF
+link wants every name an object uses defined.
 
 None of the 44 aborting stub functions is linked into `darkcloud`, and neither is
 `Ps2Unimplemented` itself: `--gc-sections` keeps only what `main` reaches,
