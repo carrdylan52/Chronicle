@@ -3,14 +3,15 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "../platform/config.hpp"
-#include "../platform/display.hpp"
-#include "../platform/paths.hpp"
+#include "options/config_game.hpp"
+#include "platform/display.hpp"
+#include "platform/paths.hpp"
 #include "platform_fixture.hpp"
 
 TEST(PlatformConfig, Defaults) {
@@ -109,7 +110,7 @@ TEST(PlatformConfig, InvalidJsonKeepsTheDefaults) {
 }
 
 TEST(PlatformConfig, LoadsFromSaveRoot) {
-    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_test_" + std::to_string(dc::test::ProcessId()));
+    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_test_" + std::to_string(kz::test::ProcessId()));
     std::filesystem::create_directories(root);
     PathsSetSaveRoot(root);
     ASSERT_TRUE(PathsSaveRoot() == root);
@@ -261,6 +262,21 @@ TEST(PlatformConfig, SerializeRoundTrips) {
     ASSERT_TRUE(again.key_bindings[1].keys.size() == 1 && again.key_bindings[1].keys[0] == "Return");
 }
 
+TEST(PlatformConfig, DocumentedSampleRoundTrips) {
+    std::ifstream doc(std::filesystem::path(__FILE__).parent_path() / ".." / ".." / ".." / "docs" / "PC.md");
+    std::string   text((std::istreambuf_iterator<char>(doc)), std::istreambuf_iterator<char>());
+    std::size_t   begin = text.find("```jsonc\n");
+    ASSERT_NE(begin, std::string::npos);
+    begin += 9;
+    std::string sample = text.substr(begin, text.find("```", begin) - begin);
+
+    testing::internal::CaptureStderr();
+    Config config = ConfigParse(sample);
+    ASSERT_EQ(testing::internal::GetCapturedStderr(), "");
+    ASSERT_EQ(config.key_bindings.size(), 4u);
+    ASSERT_TRUE(ConfigParse(ConfigSerialize(config)) == config);
+}
+
 namespace {
 
 std::vector<std::pair<Config, Config>> g_changes;
@@ -282,7 +298,7 @@ void ChangeAgain(const Config &before, const Config &after) {
 } // namespace
 
 TEST(PlatformConfig, CameraReturnChangesLiveAndPersists) {
-    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_camera_return_" + std::to_string(dc::test::ProcessId()));
+    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_camera_return_" + std::to_string(kz::test::ProcessId()));
 
     struct Cleanup {
         std::filesystem::path root;
@@ -312,7 +328,7 @@ TEST(PlatformConfig, CameraReturnChangesLiveAndPersists) {
 }
 
 TEST(PlatformConfig, ChangeAppliesAndSaves) {
-    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_change_" + std::to_string(dc::test::ProcessId()));
+    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_config_change_" + std::to_string(kz::test::ProcessId()));
 
     struct Cleanup {
         std::filesystem::path root;
@@ -562,7 +578,7 @@ TEST(PlatformConfig, DisplayFieldsFollowTheWindow) {
         {Pump,     false, 0,                 Changed, left,       3, 2},
     };
 
-    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_display_" + std::to_string(dc::test::ProcessId()));
+    std::filesystem::path root = std::filesystem::temp_directory_path() / ("dc_display_" + std::to_string(kz::test::ProcessId()));
     std::filesystem::create_directories(root);
     PathsSetSaveRoot(root);
     std::ofstream(root / "config.json") << "{}";
