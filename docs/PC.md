@@ -1898,6 +1898,7 @@ The game reads its files from a plain directory, not from the disc.
 
 ```sh
 port/build/pc/dcdata extract "rom/pal/Dark Cloud (PAL).iso" data
+port/build/pc/dcdata verify data
 port/build/pc/dcdata list "rom/pal/Dark Cloud (PAL).iso"
 ```
 
@@ -1905,10 +1906,17 @@ The source is a disc image, read through its ISO 9660 tree, or a directory
 that holds `DATA.DAT` and `DATA.HD2` (such as `rom/pal/extracted/iso`).
 `extract` writes every file `DATA.HD2` indexes to `<data>/<path>`, the path
 lowercased with `/` separators and no leading separator, at its exact size,
-and copies the index itself to `<data>/data.hd2`. A file already present at
-its size is kept, so a rerun only repairs what is missing. When a path is
-listed twice, only the first is written, as the game only ever finds the
-first. `list` prints each file's sector, size and path.
+and copies the index itself to `<data>/data.hd2`. Each file is written beside
+its target and renamed into place, and `<data>/manifest.sha256` records the
+SHA-256 of every file's extent on the disc. A file already present is kept
+when the manifest proves it (or, without one, when its bytes are the
+extent's), so a rerun only repairs what is missing. When a path is listed
+twice, only the first is written, as the game only ever finds the first;
+any other collision, or a path that would leave `<data>`, stops the
+extraction before it writes anything. `verify` checks every file against the
+manifest, without the disc. `list` prints each file's sector, size and path.
+The disc reading, extraction and manifest are `tools/kazarov/port/data`'s;
+`tools/dcdata/dcdata.hpp` adds the index, releases and fixes.
 
 The layout of `data/` is the archive's own: `dun/pack/maindat.pac`,
 `commenu/a_eng/savetex.pak`, `sound/bgm/...` and so on. Lookups fold case,

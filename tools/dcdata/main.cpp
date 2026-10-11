@@ -8,6 +8,7 @@ namespace {
 
 int Usage() {
     std::fputs("usage: dcdata extract <iso-or-directory> <data-directory>\n"
+               "       dcdata verify <data-directory>\n"
                "       dcdata list <iso-or-directory>\n",
                stderr);
     return 2;
@@ -57,12 +58,23 @@ int Extract(const std::filesystem::path &source, const std::filesystem::path &ou
     return 0;
 }
 
+int Verify(const std::filesystem::path &root) {
+    std::vector<std::string> problems = dcdata::Verify(root, stdout);
+    for (const std::string &problem : problems) {
+        dcdata::Log(stderr, "{}\n", problem);
+    }
+    return problems.empty() ? 0 : 1;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
     try {
         if (argc == 4 && std::strcmp(argv[1], "extract") == 0) {
             return Extract(argv[2], argv[3]);
+        }
+        if (argc == 3 && std::strcmp(argv[1], "verify") == 0) {
+            return Verify(argv[2]);
         }
         if (argc == 3 && std::strcmp(argv[1], "list") == 0) {
             return List(argv[2]);
