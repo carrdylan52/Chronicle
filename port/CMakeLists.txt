@@ -214,7 +214,7 @@ endif()
 file(CONFIGURE OUTPUT ${GENERATED_DIR}/options/credits.hpp
     CONTENT "#pragma once\ninline constexpr const char *kCredits[] = {${credit_names}};\n")
 
-kz_port_library(dc_host APP_NAME "Dark Cloud" APP_ID chronicle ENV_PREFIX DC_)
+kz_port_library(dc_host APP_NAME "Dark Cloud" APP_ID chronicle ENV_PREFIX DC_ MIN_VULKAN 1.3)
 target_sources(dc_host PRIVATE ${HOST_SOURCES})
 target_include_directories(dc_host PRIVATE ${PORT_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
 
