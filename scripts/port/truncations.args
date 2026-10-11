@@ -1,0 +1,3 @@
+--executable=darkcloud
+--arena-calls=Alloc,Alloc64,ArenaBlock,GetPackFile,GetPackFileExt,LoadPackFile
+--arena-globals=read_buffer,packfile_buff,GlobalDataBuffer,VisualData,MotionData,TextureData,WaterData,ActiveData0,ActiveData1,workbuffer,WorkBuffer

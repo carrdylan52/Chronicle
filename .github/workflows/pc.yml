@@ -55,7 +55,7 @@ jobs:
           env -u DC_DATA ctest --output-on-failure -j4
 
       - name: Audit pointer truncations
-        run: /usr/bin/python3 scripts/port/truncations.py --build port/build/pc --check
+        run: /usr/bin/python3 tools/kazarov/scripts/port_truncations.py @scripts/port/truncations.args --build port/build/pc --check
 
   macos:
     name: Build and test (macOS arm64)

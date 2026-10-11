@@ -1484,7 +1484,8 @@ The game was written for a 32-bit ABI and casts pointers to `int` and back.
 `darkcloud` is position-independent (`-pie -z separate-code`) and its arenas
 lie above 4 GiB, as on arm64 macOS, whose low 4 GiB are a hard page zero, so
 such a round trip faults where it happens instead of working by luck.
-`scripts/port/truncations.py` finds every cast of a pointer to a narrower
+`tools/kazarov/scripts/port_truncations.py` (with the arguments in
+`scripts/port/truncations.args`) finds every cast of a pointer to a narrower
 integer with libclang, follows the value to where it becomes a pointer
 again, and says whether the function holding it runs in the linked
 executable; `docs/port/truncations.md` is its output. CI runs it with
