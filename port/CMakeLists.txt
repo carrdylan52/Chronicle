@@ -149,6 +149,9 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
 list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
 set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
+# The SDK functions with no replacement: docs/port/ASM_LEDGER.tsv's stub rows.
+kz_port_stubs(HEADERS ${CMAKE_SOURCE_DIR}/ps2/include/sce SYMBOLS ${CMAKE_SOURCE_DIR}/docs/port/ASM_LEDGER.tsv
+    OUT ${GENERATED_DIR}/stubs/sce OUT_SOURCES SCE_STUB_SOURCES)
 
 # CREDITS, one contributor a line and # for comments, as the About page's list of names.
 set(CREDITS_FILE ${CMAKE_SOURCE_DIR}/CREDITS)
@@ -179,7 +182,7 @@ kz_port_library(dc_host
     # The Flatpak manifest puts these sources here, since its build sandbox has no network.
     THIRD_PARTY_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/stb_truetype)
 
-add_library(dc_port OBJECT ${PORT_LIB_SOURCES})
+add_library(dc_port OBJECT ${PORT_LIB_SOURCES} ${SCE_STUB_SOURCES})
 target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)
 # Replacement units reach the host side as "gfx/gfx.hpp", "platform/window.hpp".
 target_include_directories(dc_port PRIVATE ${PORT_DIR} ${KZ_ROOT}/port ${GENERATED_DIR})
