@@ -38,39 +38,8 @@ FetchContent_Declare(nlohmann_json
     URL_HASH SHA256=42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
     FIND_PACKAGE_ARGS CONFIG)
 FetchContent_MakeAvailable(nlohmann_json)
-# The renderer, shared with the other games: tools/kazarov/port.
+# The host code shared with the other games: tools/kazarov/port.
 include(${KZ_ROOT}/cmake/KazarovPort.cmake)
-
-# The soundtrack decoders are Flatpak sources there, since its build sandbox has no network.
-# Other builds fetch the same pinned files at configure time.
-if(EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/dr_wav.h AND
-   EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/dr_flac.h AND
-   EXISTS ${CMAKE_SOURCE_DIR}/audio_decoders/stb_vorbis.c)
-    set(AUDIO_DECODER_DIR ${CMAKE_SOURCE_DIR}/audio_decoders)
-else()
-    set(AUDIO_DECODER_DIR ${CMAKE_BINARY_DIR}/audio_decoders)
-    file(DOWNLOAD https://raw.githubusercontent.com/mackron/dr_libs/dfe8377631000664666519fdb83da193fd8037f4/dr_wav.h
-        ${AUDIO_DECODER_DIR}/dr_wav.h EXPECTED_HASH SHA256=03e70c1a2d9787cd7ed3e966c075bea7bac6373f759db9cd7ca9ccdfc4ec4493)
-    file(DOWNLOAD https://raw.githubusercontent.com/mackron/dr_libs/dfe8377631000664666519fdb83da193fd8037f4/dr_flac.h
-        ${AUDIO_DECODER_DIR}/dr_flac.h EXPECTED_HASH SHA256=111144e778f55738db6851cb226015c419e00d04b916a09506d4856d9cff945c)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_vorbis.c
-        ${AUDIO_DECODER_DIR}/stb_vorbis.c EXPECTED_HASH SHA256=4c7cb2ff1f7011e9d67950446b7eb9ca044f2e464d76bfbb0b84dd2e23e65636)
-endif()
-# The message font's rasterizer (Kazarov's platform/ttffont.cpp): a single-file library, public domain or MIT, at a pinned
-# commit. Flatpak has it as a source, since its build sandbox has no network; other builds fetch the same file.
-if(EXISTS ${CMAKE_SOURCE_DIR}/stb_truetype/stb_truetype.h)
-    set(TTF_DIR ${CMAKE_SOURCE_DIR}/stb_truetype)
-else()
-    set(TTF_DIR ${CMAKE_BINARY_DIR}/stb_truetype)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
-        ${TTF_DIR}/stb_truetype.h EXPECTED_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab)
-endif()
-# The button symbols' PNG atlases (Kazarov's platform/glyphs.cpp): the same library family at the same pinned commit, a
-# Flatpak source beside stb_truetype.h, or fetched.
-if(NOT EXISTS ${TTF_DIR}/stb_image.h)
-    file(DOWNLOAD https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h
-        ${TTF_DIR}/stb_image.h EXPECTED_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3)
-endif()
 
 set(PS2_DIR ${CMAKE_SOURCE_DIR}/ps2/src)
 set(PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -179,11 +148,6 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
 
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
 list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
-# The host side (audio and Kazarov's gfx and platform) never sees a game header, so it is built
-# without dc_options: no port.h ahead of each unit and no game include paths.
-set(HOST_SOURCES ${PORT_LIB_SOURCES})
-list(FILTER HOST_SOURCES INCLUDE REGEX "/port/src/audio/")
-list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/port/src/audio/")
 set(GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
 
 # CREDITS, one contributor a line and # for comments, as the About page's list of names.
@@ -211,9 +175,9 @@ kz_port_library(dc_host
     ICON ${CMAKE_SOURCE_DIR}/port/icon/chronicle-128.rgba
     PROJECT_LABEL "Chronicle on GitHub" PROJECT_URL https://github.com/TheMoonPeople/Chronicle
     DISCORD_CLIENT_ID 1556980864171245638 DISCORD_IMAGE chronicle
-    DISCORD_IMAGE_TEXT "Chronicle, the Dark Cloud decompilation")
-target_sources(dc_host PRIVATE ${HOST_SOURCES})
-target_include_directories(dc_host PRIVATE ${PORT_DIR} ${AUDIO_DECODER_DIR} ${TTF_DIR})
+    DISCORD_IMAGE_TEXT "Chronicle, the Dark Cloud decompilation"
+    # The Flatpak manifest puts these sources here, since its build sandbox has no network.
+    THIRD_PARTY_DIRS ${CMAKE_SOURCE_DIR}/audio_decoders ${CMAKE_SOURCE_DIR}/stb_truetype)
 
 add_library(dc_port OBJECT ${PORT_LIB_SOURCES})
 target_link_libraries(dc_port PRIVATE dc_options SDL3::SDL3 Vulkan::Vulkan nlohmann_json::nlohmann_json)

@@ -333,6 +333,7 @@ void ApplyDiscord(const Config &config) {
 void ApplyConfigChange(const Config &before, const Config &after) {
     audio::DefaultMixer().SetMasterGain(after.master_volume);
     AudioSetSurround(after.surround);
+    audio::SoundtrackSetEnabled(after.soundtrack);
     InputApplyConfig(after);
     if (after.tick_rate != before.tick_rate) {
         ClockSetTickRate(after.tick_rate);
@@ -431,6 +432,7 @@ int Run(int argc, const char **argv) {
     ConfigLoad();
     audio::SoundtrackEnsure();
     const Config &config = ConfigGet();
+    audio::SoundtrackSetEnabled(config.soundtrack);
 
     DisplaySetOverrides(options.width, options.height, options.headless);
     WindowConfig window = DisplayWindowConfig(config);
