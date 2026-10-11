@@ -83,9 +83,11 @@ unit's current bytes; statefix reports rows whose kind or count no longer fits.
 ### 1.3 The invented-name counter
 
 `0x0052B5D0`, handed out and post-incremented by `0x0042E540`; `0x0042E550`
-renders it as the `@<n>` a float constant is filed under. It runs for the whole
-invocation and cannot be written before the run — the compiler initialises it
-itself. It changes names in the object and not one instruction.
+renders it as the `@<n>` (and `<name>$<n>`) a float constant or static local
+is filed under. It restarts with each source file, even when one invocation
+compiles several, and cannot be written before the run — the compiler
+initialises it itself. Retail's starting values (`#pragma name_counter`) do not
+increase in link order. It changes names in the object and not one instruction.
 
 ### 1.3a A float literal's reuse across stores
 
@@ -115,6 +117,14 @@ is `0x004440A0`; at `0x004440C6` the name is the token at `[0x005570FC] + 10`,
 unknown-name exit.
 
 The annotation pass of §1.2 runs **one function behind the parser**.
+
+### 1.6 One invocation for the whole program
+
+One run over every unit of main, title and dun, in link order, reproduces the
+helper mask of §1.1; title needs main compiled before it. It does not
+reproduce the name counter (§1.3) or the arena-memory reads (§1.2, §1.3a).
+Single-run compiles are deterministic, but without statefix they match 75 of
+135 units exactly, so per-unit compiles with statefix remain the build.
 
 ---
 
