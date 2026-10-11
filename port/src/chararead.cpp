@@ -1,7 +1,7 @@
 #include "chararead.hpp"
 
+#include "runtime/vu0_ops.hpp"
 #include "stubs/cloth.hpp"
-#include "vu0_ops.hpp"
 
 void StretchBind2(float *point_a, float *point_b, float *spring) {
     float d[3] = {point_a[0] - point_b[0], point_a[1] - point_b[1], point_a[2] - point_b[2]};

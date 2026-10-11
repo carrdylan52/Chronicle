@@ -1,5 +1,5 @@
+#include "runtime/vu0_ops.hpp"
 #include "stubs/frame.hpp"
-#include "vu0_ops.hpp"
 
 namespace {
 

@@ -7,8 +7,8 @@
 #include "gameutil.hpp"
 #include "mathutil.hpp"
 #include "mdt.hpp"
+#include "runtime/vu0_ops.hpp"
 #include "visualvu1.hpp"
-#include "vu0_ops.hpp"
 
 namespace {
 

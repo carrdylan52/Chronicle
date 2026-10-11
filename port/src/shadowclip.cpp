@@ -9,7 +9,7 @@
 #include "mathutil.hpp"
 #include "mdt.hpp"
 #include "renderinfo.hpp"
-#include "vu0_ops.hpp"
+#include "runtime/vu0_ops.hpp"
 
 // Retail also builds local_to_clip, a normalised eye-space light and a near-plane drop shadow
 // matrix; nothing it emits depends on them, so they are left out.

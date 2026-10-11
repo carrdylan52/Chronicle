@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-#include "arena.hpp"
 #include "menu_draw.hpp"
 #include "platform/memory.hpp"
+#include "runtime/arena.hpp"
 #include "texture.hpp"
 
 namespace {

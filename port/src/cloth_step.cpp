@@ -5,8 +5,8 @@
 #include "bound.hpp"
 #include "cloth.hpp"
 #include "frame.hpp"
+#include "runtime/vu0_ops.hpp"
 #include "stubs/cloth.hpp"
-#include "vu0_ops.hpp"
 #include "wind.hpp"
 
 namespace {

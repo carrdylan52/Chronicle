@@ -1,6 +1,6 @@
 #include "stubs/collisionmdt.hpp"
 
-#include "vu0_ops.hpp"
+#include "runtime/vu0_ops.hpp"
 
 namespace {
 

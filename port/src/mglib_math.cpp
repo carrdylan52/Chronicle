@@ -3,7 +3,7 @@
 
 #include "mglib.hpp"
 #include "renderinfo.hpp"
-#include "vu0_ops.hpp"
+#include "runtime/vu0_ops.hpp"
 
 namespace {
 

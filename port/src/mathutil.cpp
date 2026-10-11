@@ -2,7 +2,7 @@
 
 #include <libvu0.h>
 
-#include "vu0_ops.hpp"
+#include "runtime/vu0_ops.hpp"
 
 void VectorMax(float *max, float *a, float *b) {
     vu0::Max(max, a, b);

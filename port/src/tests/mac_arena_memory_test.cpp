@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include "arena.hpp"
 #include "platform/memory.hpp"
 #include "platform_fixture.hpp"
+#include "runtime/arena.hpp"
 
 namespace {
 
