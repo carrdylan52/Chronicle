@@ -37,6 +37,7 @@ struct Config : HostSettings {
     bool              debug_mode = false;
     bool              qte_always_win = false;
     bool              element_quick_select = false;
+    bool              text_wipe = false; /**< Enables the developer text comparison and tuning tool. */
     bool              interpolation = true;
     ConfigAspect      aspect = ConfigAspect::Auto;
     float             ui_scale = 1.0f;
