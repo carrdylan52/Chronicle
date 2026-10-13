@@ -140,7 +140,8 @@ target_compile_options(dc_ps2 PRIVATE -Wall -Wno-writable-strings -Wno-unknown-p
     -Wno-unused-const-variable -Wno-undefined-internal -Wno-self-assign -Wno-deprecated-volatile)
 
 set(PORT_LIB_SOURCES ${PORT_SOURCES})
-list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$")
+# ixion_plugin.cpp is the Ixion module's entry (IXION_BUILD_PLUGIN below), not part of the game.
+list(FILTER PORT_LIB_SOURCES EXCLUDE REGEX "/tests/|/main\\.cpp$|/ixion_plugin\\.cpp$")
 
 set(SHADER_HEADER_DIR ${CMAKE_BINARY_DIR}/generated)
 
@@ -203,13 +204,22 @@ else()
         -Wl,--defsym=draw_rect=draw_rect_store -Wl,--defsym=WorkBuffer__2=WorkBuffer)
 endif()
 
+# A shared library (the Ixion module) takes the executable's link flags without -pie, which is for executables.
+set(DC_MODULE_LINK_OPTIONS ${DC_LINK_OPTIONS})
+list(REMOVE_ITEM DC_MODULE_LINK_OPTIONS -pie)
+
 function(dc_link_game target)
+    cmake_parse_arguments(DC "MODULE" "" "" ${ARGN})
     target_sources(${target} PRIVATE $<TARGET_OBJECTS:dc_port> $<TARGET_OBJECTS:dc_host> $<TARGET_OBJECTS:dc_ps2>)
     target_link_libraries(${target} PRIVATE dc_options kz_port_headers SDL3::SDL3 Vulkan::Vulkan)
     target_include_directories(${target} PRIVATE ${PORT_DIR})
     target_compile_options(${target} PRIVATE -Wall -Wno-mismatched-tags -Wno-unused-label
         -Wno-overloaded-virtual -Wno-unused-function)
-    target_link_options(${target} PRIVATE ${DC_LINK_OPTIONS})
+    if(DC_MODULE)
+        target_link_options(${target} PRIVATE ${DC_MODULE_LINK_OPTIONS})
+    else()
+        target_link_options(${target} PRIVATE ${DC_LINK_OPTIONS})
+    endif()
 endfunction()
 
 add_executable(darkcloud ${PORT_DIR}/main.cpp)
@@ -249,3 +259,37 @@ if(DC_BUILD_TESTS)
     add_subdirectory(src/tests)
 endif()
 add_subdirectory(${CMAKE_SOURCE_DIR}/tools/dcdata ${CMAKE_BINARY_DIR}/tools/dcdata)
+
+# The Ixion module (ixion/docs/HOP-V0.md): this game as a shared library that the Ixion host loads
+# beside Dark Chronicle's. It is the executable's objects with ixion_plugin.cpp, and it exports only
+# ixion_get_api. IXION_API_DIR is the ixion/include directory that holds ixion_api.h. Off by default:
+# the standalone build is unchanged.
+option(IXION_BUILD_PLUGIN "Also build ixion_c1, Dark Cloud as an Ixion module" OFF)
+set(IXION_API_DIR "" CACHE PATH "The ixion/include directory that holds ixion_api.h")
+if(IXION_BUILD_PLUGIN)
+    if(NOT EXISTS "${IXION_API_DIR}/ixion_api.h")
+        message(FATAL_ERROR "IXION_BUILD_PLUGIN needs IXION_API_DIR, the directory that holds ixion_api.h")
+    endif()
+    add_library(ixion_c1 SHARED ${PORT_DIR}/main.cpp ${PORT_DIR}/ixion_plugin.cpp)
+    set_target_properties(ixion_c1 PROPERTIES PREFIX "" RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+    dc_link_game(ixion_c1 MODULE)
+    target_include_directories(ixion_c1 PRIVATE ${IXION_API_DIR})
+    # lang/ and glyphs/ are read from beside the host executable; the module's folder is the same one.
+    add_dependencies(ixion_c1 dc_lang dc_glyphs)
+    if(WIN32)
+        # Only ixion_get_api is dllexport, and this keeps the rest of the module out of the export table. The ELF
+        # and Mach-O linkers have no such flag, so there the module is not yet hidden (see the open issues).
+        target_link_options(ixion_c1 PRIVATE -Wl,--exclude-all-symbols)
+        # The runtime libraries build.ps1 stages beside darkcloud.exe, staged beside the module as well.
+        get_filename_component(KZ_LLVM_RUNTIME "${CMAKE_CXX_COMPILER}/../../x86_64-w64-mingw32/bin" ABSOLUTE)
+        add_custom_command(TARGET ixion_c1 POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_RUNTIME_DLLS:ixion_c1>
+                "${KZ_LLVM_RUNTIME}/libc++.dll" "${KZ_LLVM_RUNTIME}/libunwind.dll"
+                "${KZ_LLVM_RUNTIME}/libwinpthread-1.dll"
+                $<TARGET_FILE_DIR:ixion_c1>
+            COMMAND_EXPAND_LISTS
+            VERBATIM)
+    endif()
+endif()

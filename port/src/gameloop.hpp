@@ -99,6 +99,8 @@ void GameSetPresentSettings(const GamePresentSettings &settings);
 void GameRenderTick(gfx::DisplayListRef list);
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick);
 void GamePresentTickEnd();
+// For an embedding host: call after the game was parked and resumed, so pacing restarts from now.
+void GamePresentRebase();
 
 struct GamePresentStats {
     std::uint64_t ticks;

@@ -703,6 +703,14 @@ void GameRenderTick(gfx::DisplayListRef list) {
     g_tick_shown = false;
 }
 
+// After the game was parked and resumed: pacing and the FPS counters measure from now, not from
+// before the park.
+void GamePresentRebase() {
+    g_last_present = PresentClock::now();
+    g_fps.frames = OverlayRate();
+    g_fps.ticks = OverlayRate();
+}
+
 bool GamePresentBetweenTicks(double fraction, std::chrono::steady_clock::time_point next_tick) {
     if (!g_list) {
         return false;

@@ -17,6 +17,7 @@
 #include "gameloop.hpp"
 #include "mathutil.hpp"
 #include "platform/clock.hpp"
+#include "platform/embed.hpp"
 #include "rect.hpp"
 #include "renderinfo.hpp"
 #include "screen.hpp"
@@ -649,6 +650,10 @@ PORT_OVERRIDE void MGEndFrame() {
     GamePresentTickEnd();
 
     DBuffID = !DBuffID;
+    // Embedded only: the frame is presented and the buffer has flipped, so the host may park the game here.
+    if (EmbedCheckpoint(kEmbedFrameEnd)) {
+        GamePresentRebase();
+    }
 }
 
 PORT_OVERRIDE void MGFlipWaitVSync(int wait) {

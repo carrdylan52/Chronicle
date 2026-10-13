@@ -28,6 +28,7 @@
 #include "platform/config.hpp"
 #include "platform/discord.hpp"
 #include "platform/display.hpp"
+#include "platform/embed.hpp"
 #include "platform/firstrun.hpp"
 #include "platform/input.hpp"
 #include "platform/input_script.hpp"
@@ -301,7 +302,7 @@ GamePresentSettings PresentSettings(const Config &config) {
 
 void ApplyDiscord(const Config &config) {
     DiscordStop();
-    if (config.discord_rich_presence && !g_options.headless) {
+    if (config.discord_rich_presence && !g_options.headless && !EmbedActive()) {
         DiscordStart(kDiscordClientId);
     }
 }
@@ -467,6 +468,12 @@ int Run(int argc, const char **argv) {
 }
 
 } // namespace
+
+// Run for a host that owns the process, SDL and the event queue (ixion_plugin.cpp); it calls
+// EmbedEnable first. main is the standalone executable's run.
+int RunDarkCloud(int argc, const char **argv) {
+    return Run(argc, argv);
+}
 
 PORT_OVERRIDE int main(int argc, const char **argv, const char **envp) {
     return Run(argc, argv);

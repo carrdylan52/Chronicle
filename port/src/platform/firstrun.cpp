@@ -22,6 +22,7 @@
 #include "config.hpp"
 #include "exitcodes.hpp"
 #include "gfx/gfx.hpp"
+#include "platform/embed.hpp"
 #include "platform/overlay.hpp"
 #include "platform/settings.hpp"
 #include "platform/paths.hpp"
@@ -452,6 +453,11 @@ void FirstRunSetChooser(FirstRunChooser replacement) {
 void FirstRunIfNoData(bool headless) {
     const fs::path &root = PathsDataRoot();
     if (!FirstRunDataMissing(root) || (headless && !chooser)) {
+        return;
+    }
+    // The first-run screen runs its own event loop, which an embedding host does not feed; the
+    // data check in main then says what to do.
+    if (EmbedActive()) {
         return;
     }
     // No display at all: leave it to main's data check, which says what to run instead.
